@@ -171,8 +171,7 @@ class ASCIISoilLayer:
 	"""
 	ASCII版本的土壤层
 	"""
-	def __init__(self, all_sprites, collision_sprites, ascii_mode=False):
-		self.ascii_mode = ascii_mode
+	def __init__(self, all_sprites, collision_sprites):
 		
 		# 精灵组
 		self.all_sprites = all_sprites

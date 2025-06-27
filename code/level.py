@@ -2,12 +2,10 @@ import pygame
 from settings import *
 from player import Player
 from overlay import Overlay
-from sprites import Generic, Water, WildFlower, Tree, Interaction, Particle
 from ascii_sprites import ASCIIGeneric, ASCIIWater, ASCIIWildFlower, ASCIITree, ASCIIInteraction, ASCIIParticle
 from pytmx.util_pygame import load_pygame
 from support import *
 from transition import Transition
-from soil import SoilLayer
 from ascii_soil import ASCIISoilLayer
 from sky import Rain, Sky
 from random import randint
@@ -17,12 +15,9 @@ class Level:
 	"""
 	游戏关卡类 - 管理整个游戏世界的主要逻辑
 	包括地图加载、精灵管理、天气系统、商店系统等
-	支持ASCII模式和图片模式
+	完全使用ASCII模式渲染
 	"""
-	def __init__(self, ascii_mode=False):
-		# ASCII模式开关
-		self.ascii_mode = ascii_mode
-		
+	def __init__(self):
 		# 获取显示表面
 		self.display_surface = pygame.display.get_surface()
 
@@ -32,11 +27,8 @@ class Level:
 		self.tree_sprites = pygame.sprite.Group()
 		self.interaction_sprites = pygame.sprite.Group()
 
-		# 土壤层系统 - 根据模式选择
-		if self.ascii_mode:
-			self.soil_layer = ASCIISoilLayer(self.all_sprites, self.collision_sprites, ascii_mode=True)
-		else:
-			self.soil_layer = SoilLayer(self.all_sprites, self.collision_sprites)
+		# 土壤层系统 - 使用ASCII版本
+		self.soil_layer = ASCIISoilLayer(self.all_sprites, self.collision_sprites)
 		
 		self.setup()
 		self.overlay = Overlay(self.player)
@@ -62,70 +54,43 @@ class Level:
 		"""
 		设置游戏地图和所有精灵
 		从TMX文件加载地图数据并创建相应的游戏对象
+		全部使用ASCII模式渲染
 		"""
 		tmx_data = load_pygame('../data/map.tmx')  # 加载TMX地图文件
 
 		# 房屋地板和家具（底层）
 		for layer in ['HouseFloor', 'HouseFurnitureBottom']:
 			for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
-				if self.ascii_mode:
-					ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'floor', self.all_sprites, LAYERS['house bottom'])
-				else:
-					Generic((x * TILE_SIZE,y * TILE_SIZE), surf, self.all_sprites, LAYERS['house bottom'])
+				ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'floor', self.all_sprites, LAYERS['house bottom'])
 
 		# 房屋墙壁和家具（顶层）
 		for layer in ['HouseWalls', 'HouseFurnitureTop']:
 			for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
-				if self.ascii_mode:
-					ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'wall', self.all_sprites)
-				else:
-					Generic((x * TILE_SIZE,y * TILE_SIZE), surf, self.all_sprites)
+				ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'wall', self.all_sprites)
 
 		# 栅栏
 		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
-			if self.ascii_mode:
-				ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'fence', [self.all_sprites, self.collision_sprites])
-			else:
-				Generic((x * TILE_SIZE,y * TILE_SIZE), surf, [self.all_sprites, self.collision_sprites])
+			ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'fence', [self.all_sprites, self.collision_sprites])
 
 		# 水效果
-		if self.ascii_mode:
-			for x, y, surf in tmx_data.get_layer_by_name('Water').tiles():
-				ASCIIWater((x * TILE_SIZE,y * TILE_SIZE), self.all_sprites)
-		else:
-			water_frames = import_folder('../graphics/water')
-			for x, y, surf in tmx_data.get_layer_by_name('Water').tiles():
-				Water((x * TILE_SIZE,y * TILE_SIZE), water_frames, self.all_sprites)
+		for x, y, surf in tmx_data.get_layer_by_name('Water').tiles():
+			ASCIIWater((x * TILE_SIZE,y * TILE_SIZE), self.all_sprites)
 
 		# 树木
 		for obj in tmx_data.get_layer_by_name('Trees'):
-			if self.ascii_mode:
-				ASCIITree(
-					pos = (obj.x, obj.y), 
-					groups = [self.all_sprites, self.collision_sprites, self.tree_sprites], 
-					name = obj.name,
-					player_add = self.player_add)
-			else:
-				Tree(
-					pos = (obj.x, obj.y), 
-					surf = obj.image, 
-					groups = [self.all_sprites, self.collision_sprites, self.tree_sprites], 
-					name = obj.name,
-					player_add = self.player_add)
+			ASCIITree(
+				pos = (obj.x, obj.y), 
+				groups = [self.all_sprites, self.collision_sprites, self.tree_sprites], 
+				name = obj.name,
+				player_add = self.player_add)
 
 		# 野花装饰
 		for obj in tmx_data.get_layer_by_name('Decoration'):
-			if self.ascii_mode:
-				ASCIIWildFlower((obj.x, obj.y), [self.all_sprites, self.collision_sprites])
-			else:
-				WildFlower((obj.x, obj.y), obj.image, [self.all_sprites, self.collision_sprites])
+			ASCIIWildFlower((obj.x, obj.y), [self.all_sprites, self.collision_sprites])
 
 		# 碰撞瓦片
 		for x, y, surf in tmx_data.get_layer_by_name('Collision').tiles():
-			if self.ascii_mode:
-				ASCIIGeneric((x * TILE_SIZE, y * TILE_SIZE), 'stone', self.collision_sprites)
-			else:
-				Generic((x * TILE_SIZE, y * TILE_SIZE), pygame.Surface((TILE_SIZE, TILE_SIZE)), self.collision_sprites)
+			ASCIIGeneric((x * TILE_SIZE, y * TILE_SIZE), 'stone', self.collision_sprites)
 
 		# 玩家和交互对象
 		for obj in tmx_data.get_layer_by_name('Player'):
@@ -138,33 +103,20 @@ class Level:
 					interaction = self.interaction_sprites,
 					soil_layer = self.soil_layer,
 					toggle_shop = self.toggle_shop,
-					ascii_mode = self.ascii_mode)
+					ascii_mode = True)
 			
 			if obj.name == 'Bed':  # 床（睡觉交互）
-				if self.ascii_mode:
-					ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
-				else:
-					Interaction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
+				ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
 
 			if obj.name == 'Trader':  # 商人（商店交互）
-				if self.ascii_mode:
-					ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
-				else:
-					Interaction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
+				ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
 
 		# 地面背景
-		if self.ascii_mode:
-			ASCIIGeneric(
-				pos = (0,0),
-				tile_type = 'grass',
-				groups = self.all_sprites,
-				z = LAYERS['ground'])
-		else:
-			Generic(
-				pos = (0,0),
-				surf = pygame.image.load('../graphics/world/ground.png').convert_alpha(),
-				groups = self.all_sprites,
-				z = LAYERS['ground'])
+		ASCIIGeneric(
+			pos = (0,0),
+			tile_type = 'grass',
+			groups = self.all_sprites,
+			z = LAYERS['ground'])
 
 	def player_add(self,item):
 		"""
@@ -193,14 +145,9 @@ class Level:
 		if self.raining:
 			self.soil_layer.water_all()  # 如果下雨，给所有土壤浇水
 
-		# 重置树上的苹果
+		# 重置树上的苹果（ASCII模式）
 		for tree in self.tree_sprites.sprites():
-			if self.ascii_mode:
-				tree.create_fruit()
-			else:
-				for apple in tree.apple_sprites.sprites():
-					apple.kill()  # 移除所有苹果
-				tree.create_fruit()  # 重新生成苹果
+			tree.create_fruit()
 
 		# 重置天空颜色
 		self.sky.start_color = [255,255,255]
@@ -215,11 +162,8 @@ class Level:
 					self.player_add(plant.plant_type)  # 添加收获的物品
 					plant.kill()  # 移除植物
 					
-					# 创建粒子效果
-					if self.ascii_mode:
-						ASCIIParticle(plant.rect.topleft, 'crop', self.all_sprites, z = LAYERS['main'])
-					else:
-						Particle(plant.rect.topleft, plant.image, self.all_sprites, z = LAYERS['main'])
+					# 创建粒子效果（ASCII模式）
+					ASCIIParticle(plant.rect.topleft, 'crop', self.all_sprites, z = LAYERS['main'])
 					
 					self.soil_layer.grid[plant.rect.centery // TILE_SIZE][plant.rect.centerx // TILE_SIZE].remove('P')  # 从网格中移除
 

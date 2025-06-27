@@ -7,16 +7,15 @@ from font_manager import FontManager
 
 class Game:
 	"""
-	主游戏类
+	主游戏类 - 纯ASCII模式农场模拟游戏
 	"""
 	def __init__(self):
 		pygame.init()
 		self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-		pygame.display.set_caption('农场模拟游戏 - ASCII/图片模式')
+		pygame.display.set_caption('农场模拟游戏 - ASCII模式')
 		self.clock = pygame.time.Clock()
 		
 		# 游戏状态
-		self.ascii_mode = False
 		self.level = None
 		self.show_menu = True
 		
@@ -25,10 +24,9 @@ class Game:
 		self.font = self.font_manager.load_chinese_font(36, "menu_large")
 		self.small_font = self.font_manager.load_chinese_font(24, "menu_small")
 		
-		# 按钮
-		self.ascii_button = pygame.Rect(SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 50, 200, 50)
-		self.image_button = pygame.Rect(SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 + 20, 200, 50)
-		self.toggle_button = pygame.Rect(SCREEN_WIDTH - 150, 10, 140, 30)
+		# 开始游戏按钮
+		self.start_button = pygame.Rect(SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 25, 200, 50)
+		self.quit_button = pygame.Rect(SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 + 50, 200, 50)
 	
 	def draw_menu(self):
 		"""
@@ -42,44 +40,35 @@ class Game:
 		self.screen.blit(title, title_rect)
 		
 		# 副标题
-		subtitle = self.small_font.render('选择游戏模式', True, (200, 200, 200))
+		subtitle = self.small_font.render('ASCII矮人要塞风格', True, (200, 200, 200))
 		subtitle_rect = subtitle.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//3 + 40))
 		self.screen.blit(subtitle, subtitle_rect)
 		
-		# ASCII模式按钮
-		pygame.draw.rect(self.screen, (100, 100, 100), self.ascii_button)
-		pygame.draw.rect(self.screen, (255, 255, 255), self.ascii_button, 2)
-		ascii_text = self.font.render('ASCII模式', True, (255, 255, 255))
-		ascii_rect = ascii_text.get_rect(center=self.ascii_button.center)
-		self.screen.blit(ascii_text, ascii_rect)
+		# 开始游戏按钮
+		pygame.draw.rect(self.screen, (100, 100, 100), self.start_button)
+		pygame.draw.rect(self.screen, (255, 255, 255), self.start_button, 2)
+		start_text = self.font.render('开始游戏', True, (255, 255, 255))
+		start_rect = start_text.get_rect(center=self.start_button.center)
+		self.screen.blit(start_text, start_rect)
 		
-		# 图片模式按钮
-		pygame.draw.rect(self.screen, (100, 100, 100), self.image_button)
-		pygame.draw.rect(self.screen, (255, 255, 255), self.image_button, 2)
-		image_text = self.font.render('图片模式', True, (255, 255, 255))
-		image_rect = image_text.get_rect(center=self.image_button.center)
-		self.screen.blit(image_text, image_rect)
+		# 退出游戏按钮
+		pygame.draw.rect(self.screen, (100, 100, 100), self.quit_button)
+		pygame.draw.rect(self.screen, (255, 255, 255), self.quit_button, 2)
+		quit_text = self.font.render('退出游戏', True, (255, 255, 255))
+		quit_rect = quit_text.get_rect(center=self.quit_button.center)
+		self.screen.blit(quit_text, quit_rect)
 		
 		# 说明文字
-		ascii_desc = self.small_font.render('矮人要塞风格，使用ASCII字符', True, (150, 150, 150))
-		ascii_desc_rect = ascii_desc.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 80))
-		self.screen.blit(ascii_desc, ascii_desc_rect)
+		desc_lines = [
+			'使用ASCII字符渲染的农场模拟游戏',
+			'@ = 玩家  T = 树木  * = 花朵  ~ = 水',
+			'ESC键返回主菜单'
+		]
 		
-		image_desc = self.small_font.render('传统像素风格，使用精美图片', True, (150, 150, 150))
-		image_desc_rect = image_desc.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 110))
-		self.screen.blit(image_desc, image_desc_rect)
-	
-	def draw_toggle_button(self):
-		"""
-		绘制模式切换按钮
-		"""
-		pygame.draw.rect(self.screen, (50, 50, 50), self.toggle_button)
-		pygame.draw.rect(self.screen, (255, 255, 255), self.toggle_button, 2)
-		
-		mode_text = 'ASCII' if self.ascii_mode else '图片'
-		toggle_text = self.small_font.render(f'切换: {mode_text}', True, (255, 255, 255))
-		toggle_rect = toggle_text.get_rect(center=self.toggle_button.center)
-		self.screen.blit(toggle_text, toggle_rect)
+		for i, line in enumerate(desc_lines):
+			desc = self.small_font.render(line, True, (150, 150, 150))
+			desc_rect = desc.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 120 + i*25))
+			self.screen.blit(desc, desc_rect)
 	
 	def handle_menu_events(self):
 		"""
@@ -90,12 +79,16 @@ class Game:
 				return False
 			
 			if event.type == pygame.MOUSEBUTTONDOWN:
-				if self.ascii_button.collidepoint(event.pos):
-					self.ascii_mode = True
+				if self.start_button.collidepoint(event.pos):
 					self.start_game()
-				elif self.image_button.collidepoint(event.pos):
-					self.ascii_mode = False
+				elif self.quit_button.collidepoint(event.pos):
+					return False
+			
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_RETURN:
 					self.start_game()
+				elif event.key == pygame.K_ESCAPE:
+					return False
 		
 		return True
 	
@@ -111,26 +104,15 @@ class Game:
 				if event.key == pygame.K_ESCAPE:
 					self.show_menu = True
 					self.level = None
-			
-			if event.type == pygame.MOUSEBUTTONDOWN:
-				if self.toggle_button.collidepoint(event.pos):
-					self.toggle_mode()
 		
 		return True
 	
 	def start_game(self):
 		"""
-		开始游戏
+		开始游戏（ASCII模式）
 		"""
 		self.show_menu = False
-		self.level = Level(ascii_mode=self.ascii_mode)
-	
-	def toggle_mode(self):
-		"""
-		切换游戏模式
-		"""
-		self.ascii_mode = not self.ascii_mode
-		self.level = Level(ascii_mode=self.ascii_mode)
+		self.level = Level()
 	
 	def run(self):
 		"""
@@ -148,7 +130,6 @@ class Game:
 				running = self.handle_game_events()
 				if self.level:
 					self.level.run(dt)
-					self.draw_toggle_button()
 			
 			pygame.display.flip()
 		

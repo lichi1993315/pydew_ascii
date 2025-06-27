@@ -114,6 +114,14 @@ class ASCIITree(ASCIIGeneric):
 				self.has_fruit = False
 			
 			self.render_tree()
+	
+	def damage(self):
+		"""
+		砍伐树木（使用斧头）
+		"""
+		# 在ASCII模式下，砍伐会掉落木材
+		self.player_add('wood')
+		self.kill()
 
 class ASCIIInteraction(ASCIIGeneric):
 	"""
