@@ -2,7 +2,7 @@ import pygame
 from settings import *
 from player import Player
 from overlay import Overlay
-from ascii_sprites import ASCIIGeneric, ASCIIWater, ASCIIWildFlower, ASCIITree, ASCIIInteraction, ASCIIParticle
+from ascii_sprites import ASCIIGeneric, ASCIIWater, ASCIIWildFlower, ASCIITree, ASCIIInteraction, ASCIIParticle, ASCIINPC
 from pytmx.util_pygame import load_pygame
 from support import *
 from transition import Transition
@@ -10,6 +10,9 @@ from ascii_soil import ASCIISoilLayer
 from sky import Rain, Sky
 from random import randint
 from menu import Menu
+from npc_system import NPCManager
+from dialogue_ui import DialogueUI
+from quest_panel import QuestPanel  # 添加任务面板导入
 
 class Level:
 	"""
@@ -26,9 +29,19 @@ class Level:
 		self.collision_sprites = pygame.sprite.Group()
 		self.tree_sprites = pygame.sprite.Group()
 		self.interaction_sprites = pygame.sprite.Group()
+		self.water_sprites = pygame.sprite.Group()  # 水精灵组，用于钓鱼功能
+		self.npc_sprites = pygame.sprite.Group()  # NPC精灵组
 
 		# 土壤层系统 - 使用ASCII版本
 		self.soil_layer = ASCIISoilLayer(self.all_sprites, self.collision_sprites)
+		
+		# NPC系统 - 需要在setup之前初始化，因为setup中会用到
+		self.npc_manager = NPCManager()  # NPC管理器
+		self.dialogue_ui = DialogueUI((SCREEN_WIDTH, SCREEN_HEIGHT))
+		self.current_interacting_npc = None
+		
+		# 任务面板
+		self.quest_panel = QuestPanel()
 		
 		self.setup()
 		self.overlay = Overlay(self.player)
@@ -63,10 +76,10 @@ class Level:
 			for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
 				ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'floor', self.all_sprites, LAYERS['house bottom'])
 
-		# 房屋墙壁和家具（顶层）
+		# 房屋墙壁和家具（顶层） - 添加到碰撞精灵组
 		for layer in ['HouseWalls', 'HouseFurnitureTop']:
 			for x, y, surf in tmx_data.get_layer_by_name(layer).tiles():
-				ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'wall', self.all_sprites)
+				ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'wall', [self.all_sprites, self.collision_sprites])
 
 		# 栅栏
 		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
@@ -74,7 +87,7 @@ class Level:
 
 		# 水效果
 		for x, y, surf in tmx_data.get_layer_by_name('Water').tiles():
-			ASCIIWater((x * TILE_SIZE,y * TILE_SIZE), self.all_sprites)
+			ASCIIWater((x * TILE_SIZE,y * TILE_SIZE), [self.all_sprites, self.water_sprites])
 
 		# 树木
 		for obj in tmx_data.get_layer_by_name('Trees'):
@@ -104,6 +117,9 @@ class Level:
 					soil_layer = self.soil_layer,
 					toggle_shop = self.toggle_shop,
 					ascii_mode = True)
+				
+				# 设置水精灵组，用于钓鱼功能
+				self.player.water_sprites = self.water_sprites
 			
 			if obj.name == 'Bed':  # 床（睡觉交互）
 				ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
@@ -117,6 +133,35 @@ class Level:
 			tile_type = 'grass',
 			groups = self.all_sprites,
 			z = LAYERS['ground'])
+		
+		# 创建NPC精灵
+		self.create_npcs()
+
+	def create_npcs(self):
+		"""创建NPC精灵"""
+		# 商人NPC（在商店区域附近）
+		trader_npc = ASCIINPC(
+			pos=(1344, 1088),  # 商人位置 - 在房子外面
+			npc_id="trader_zhang",
+			npc_manager=self.npc_manager,
+			groups=[self.all_sprites, self.npc_sprites, self.collision_sprites]
+		)
+		
+		# 渔夫NPC（在水边）
+		fisherman_npc = ASCIINPC(
+			pos=(768, 448),  # 渔夫位置 - 靠近池塘
+			npc_id="fisherman_li",
+			npc_manager=self.npc_manager,
+			groups=[self.all_sprites, self.npc_sprites, self.collision_sprites]
+		)
+		
+		# 农夫NPC（在田地区域）
+		farmer_npc = ASCIINPC(
+			pos=(704, 1216),  # 农夫位置 - 在农田附近
+			npc_id="farmer_wang",
+			npc_manager=self.npc_manager,
+			groups=[self.all_sprites, self.npc_sprites, self.collision_sprites]
+		)
 
 	def player_add(self,item):
 		"""
@@ -166,6 +211,97 @@ class Level:
 					ASCIIParticle(plant.rect.topleft, 'crop', self.all_sprites, z = LAYERS['main'])
 					
 					self.soil_layer.grid[plant.rect.centery // TILE_SIZE][plant.rect.centerx // TILE_SIZE].remove('P')  # 从网格中移除
+	
+	def check_npc_interaction(self):
+		"""检查NPC交互"""
+		# 检查玩家是否靠近NPC（允许一定交互距离）
+		interaction_distance = TILE_SIZE * 1.5  # 交互距离
+		
+		for npc in self.npc_sprites:
+			# 计算玩家与NPC的距离
+			player_center = self.player.rect.center
+			npc_center = npc.rect.center
+			distance = ((player_center[0] - npc_center[0]) ** 2 + 
+					   (player_center[1] - npc_center[1]) ** 2) ** 0.5
+			
+			if distance <= interaction_distance:
+				# print(f"[NPC交互] 玩家靠近NPC: {npc.npc_id}, 距离: {distance:.1f}")
+				return npc
+		return None
+	
+	def start_npc_dialogue(self, npc):
+		"""开始NPC对话"""
+		if npc and not self.dialogue_ui.is_active():
+			print(f"[NPC对话] 开始与 {npc.npc_id} 对话")
+			self.current_interacting_npc = npc
+			# 获取NPCManager中的NPC实例
+			npc_instance = self.npc_manager.get_npc(npc.npc_id)
+			if npc_instance:
+				# 使用NPCManager的start_dialogue方法，这会触发任务检查
+				dialogues = self.npc_manager.start_dialogue(npc_instance, self.player)
+				if dialogues:
+					print(f"[NPC对话] 对话内容: {dialogues[0].text[:50]}...")
+					self.dialogue_ui.start_dialogue(dialogues)
+				else:
+					print(f"[NPC对话] 无法开始对话或已在对话中")
+					self.current_interacting_npc = None
+	
+	def handle_dialogue_input(self, key):
+		"""处理对话输入"""
+		if self.dialogue_ui.is_active():
+			choice_index = self.dialogue_ui.handle_input(key)
+			
+			if choice_index is not None and choice_index >= 0:
+				# 处理选择
+				if self.current_interacting_npc:
+					print(f"[NPC对话] 玩家选择选项 {choice_index}")
+					response = self.npc_manager.handle_dialogue_choice(
+						self.current_interacting_npc.npc_id, 
+						choice_index, 
+						self.player
+					)
+					if response:
+						print(f"[NPC对话] NPC回复: {response[0].text[:50]}...")
+						self.dialogue_ui.start_dialogue(response)
+					else:
+						print(f"[NPC对话] 对话结束")
+						self.dialogue_ui.end_dialogue()
+						self.npc_manager.end_dialogue()
+						self.current_interacting_npc = None
+			elif choice_index == -1:
+				# 对话结束
+				print(f"[NPC对话] 玩家结束对话")
+				self.dialogue_ui.end_dialogue()
+				self.npc_manager.end_dialogue()
+				self.current_interacting_npc = None
+			
+			return True  # 表示输入被对话系统处理了
+		return False  # 表示输入没有被处理
+	
+	def show_npc_interaction_hint(self):
+		"""显示NPC交互提示"""
+		nearby_npc = self.check_npc_interaction()
+		if nearby_npc and not self.dialogue_ui.is_active():
+			# 获取NPC信息
+			npc_data = self.npc_manager.get_npc(nearby_npc.npc_id)
+			if npc_data:
+				# 在屏幕中心显示交互提示
+				from font_manager import FontManager
+				font_manager = FontManager.get_instance()
+				font = font_manager.load_chinese_font(32, "npc_hint_font")
+				hint_text = f"按 T 键与 {npc_data.name} 对话"
+				text_surface = font.render(hint_text, True, (255, 255, 100))
+				text_rect = text_surface.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 100))
+				
+				# 绘制半透明背景
+				bg_rect = text_rect.inflate(20, 10)
+				bg_surface = pygame.Surface((bg_rect.width, bg_rect.height))
+				bg_surface.set_alpha(128)
+				bg_surface.fill((0, 0, 0))
+				self.display_surface.blit(bg_surface, bg_rect)
+				
+				# 绘制文本
+				self.display_surface.blit(text_surface, text_rect)
 
 	def run(self,dt):
 		"""
@@ -181,12 +317,21 @@ class Level:
 		else:
 			self.all_sprites.update(dt)  # 更新所有精灵
 			self.plant_collision()  # 检测植物碰撞
+			
+			# 检查NPC交互提示
+			self.show_npc_interaction_hint()
 
 		# 天气系统
 		self.overlay.display()  # 显示界面覆盖层
 		if self.raining and not self.shop_active:
 			self.rain.update()  # 更新雨效果
 		self.sky.display(dt)  # 显示天空效果
+		
+		# 对话系统渲染
+		self.dialogue_ui.render(self.display_surface)
+		
+		# 任务面板渲染
+		self.quest_panel.render(self.display_surface, self.player)
 
 		# 过渡动画
 		if self.player.sleep:

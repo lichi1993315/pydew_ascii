@@ -9,7 +9,10 @@ class Menu:
 		self.player = player
 		self.toggle_menu = toggle_menu
 		self.display_surface = pygame.display.get_surface()
-		self.font = pygame.font.Font('../font/LycheeSoda.ttf', 30)
+		# font - 使用统一的阿里妈妈字体
+		from font_manager import FontManager
+		font_manager = FontManager.get_instance()
+		self.font = font_manager.load_chinese_font(30, "menu_font")
 
 		# options
 		self.width = 400

@@ -1,7 +1,5 @@
 import pygame 
 from settings import *
-from support import import_folder
-from sprites import Generic
 from random import randint, choice
 
 class Sky:
@@ -19,52 +17,30 @@ class Sky:
 		self.full_surf.fill(self.start_color)
 		self.display_surface.blit(self.full_surf, (0,0), special_flags = pygame.BLEND_RGBA_MULT)
 
-class Drop(Generic):
-	def __init__(self, surf, pos, moving, groups, z):
-		
-		# general setup
-		super().__init__(pos, surf, groups, z)
-		self.lifetime = randint(400,500)
-		self.start_time = pygame.time.get_ticks()
-
-		# moving 
-		self.moving = moving
-		if self.moving:
-			self.pos = pygame.math.Vector2(self.rect.topleft)
-			self.direction = pygame.math.Vector2(-2,4)
-			self.speed = randint(200,250)
-
-	def update(self,dt):
-		# movement
-		if self.moving:
-			self.pos += self.direction * self.speed * dt
-			self.rect.topleft = (round(self.pos.x), round(self.pos.y))
-
-		# timer
-		if pygame.time.get_ticks() - self.start_time >= self.lifetime:
-			self.kill()
+# Drop类已移除 - ASCII模式下直接使用ASCIIGeneric
 
 class Rain:
 	def __init__(self, all_sprites):
 		self.all_sprites = all_sprites
-		self.rain_drops = import_folder('../graphics/rain/drops/')
-		self.rain_floor = import_folder('../graphics/rain/floor/')
-		self.floor_w, self.floor_h =  pygame.image.load('../graphics/world/ground.png').get_size()
+		# ASCII模式下不需要加载图片，使用预设尺寸
+		self.floor_w, self.floor_h = 1280, 768  # 使用固定地图尺寸
 
 	def create_floor(self):
-		Drop(
-			surf = choice(self.rain_floor), 
+		# ASCII模式下创建ASCII雨滴精灵
+		from ascii_sprites import ASCIIGeneric
+		ASCIIGeneric(
 			pos = (randint(0,self.floor_w),randint(0,self.floor_h)), 
-			moving = False, 
-			groups = self.all_sprites, 
+			tile_type = 'water',
+			groups = [self.all_sprites], 
 			z = LAYERS['rain floor'])
 
 	def create_drops(self):
-		Drop(
-			surf = choice(self.rain_drops), 
+		# ASCII模式下创建ASCII雨滴精灵
+		from ascii_sprites import ASCIIGeneric
+		ASCIIGeneric(
 			pos = (randint(0,self.floor_w),randint(0,self.floor_h)), 
-			moving = True, 
-			groups = self.all_sprites, 
+			tile_type = 'water',
+			groups = [self.all_sprites], 
 			z = LAYERS['rain drops'])
 
 	def update(self):

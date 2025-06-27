@@ -1,6 +1,7 @@
 import pygame
 from sprites import Generic
 from ascii_renderer import ASCIIRenderer
+from settings import TILE_SIZE, LAYERS
 
 class ASCIIGeneric(Generic):
 	"""
@@ -8,14 +9,41 @@ class ASCIIGeneric(Generic):
 	"""
 	
 	def __init__(self, pos, tile_type, groups, z=0, variant=0):
-		super().__init__(pos, pygame.Surface((16, 16)), groups, z)
+		super().__init__(pos, pygame.Surface((TILE_SIZE, TILE_SIZE)), groups, z)
 		self.tile_type = tile_type
 		self.variant = variant
 		self.ascii_renderer = ASCIIRenderer()
 		
 		# 创建ASCII表面
-		self.image = pygame.Surface((16, 16), pygame.SRCALPHA)
+		self.image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
 		self.ascii_renderer.render_tile(self.image, tile_type, (0, 0), variant)
+		
+		# 根据瓦片类型设置合适的碰撞盒
+		self.setup_hitbox()
+	
+	def setup_hitbox(self):
+		"""
+		根据瓦片类型设置合适的碰撞盒
+		"""
+		# 实体障碍物使用完整的碰撞盒
+		solid_tiles = ['wall', 'fence', 'stone', 'tree']
+		# 装饰物使用较小的碰撞盒
+		decorative_tiles = ['flower', 'grass', 'crop']
+		# 交互物品使用中等碰撞盒
+		interactive_tiles = ['bed', 'npc']
+		
+		if self.tile_type in solid_tiles:
+			# 实体障碍物：使用完整尺寸的碰撞盒
+			self.hitbox = self.rect.copy()
+		elif self.tile_type in decorative_tiles:
+			# 装饰物：使用较小的碰撞盒（可以被踩踏）
+			self.hitbox = self.rect.copy().inflate(-self.rect.width * 0.4, -self.rect.height * 0.8)
+		elif self.tile_type in interactive_tiles:
+			# 交互物品：使用稍小的碰撞盒
+			self.hitbox = self.rect.copy().inflate(-self.rect.width * 0.1, -self.rect.height * 0.1)
+		else:
+			# 默认：使用原来的设置
+			self.hitbox = self.rect.copy().inflate(-self.rect.width * 0.2, -self.rect.height * 0.75)
 	
 	def update_ascii(self, new_tile_type=None, new_variant=None):
 		"""
@@ -245,3 +273,29 @@ class ASCIIPlayer(pygame.sprite.Sprite):
 		"""
 		# 这里可以添加闪烁或其他动画效果
 		pass 
+
+class ASCIINPC(ASCIIGeneric):
+	"""ASCII NPC精灵类"""
+	def __init__(self, pos, npc_id, npc_manager, groups, z = LAYERS['main']):
+		# 从NPC管理器获取NPC数据
+		npc = npc_manager.get_npc(npc_id)
+		if npc:
+			ascii_char = npc.ascii_char
+		else:
+			ascii_char = '&'  # 默认字符
+		
+		# 调用父类构造函数
+		super().__init__(pos, ascii_char, groups, z)
+		
+		# NPC相关属性
+		self.npc_id = npc_id
+		self.npc_manager = npc_manager
+		
+		# 设置碰撞盒
+		self.hitbox = self.rect.copy().inflate(-self.rect.width * 0.2, -self.rect.height * 0.75)
+		
+	def interact(self, player):
+		"""与NPC交互"""
+		if self.npc_manager:
+			return self.npc_manager.interact_with_npc(self.npc_id, player)
+		return [] 

@@ -44,7 +44,8 @@ SALE_PRICES = {
 	'wood': 4,
 	'apple': 2,
 	'corn': 10,
-	'tomato': 20
+	'tomato': 20,
+	'fish': 15  # 鱼类售价
 }
 PURCHASE_PRICES = {
 	'corn': 4,

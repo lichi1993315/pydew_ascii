@@ -12,7 +12,7 @@ class Game:
 	def __init__(self):
 		pygame.init()
 		self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-		pygame.display.set_caption('农场模拟游戏 - ASCII模式')
+		pygame.display.set_caption('萌爪钓鱼 AI Demo ')
 		self.clock = pygame.time.Clock()
 		
 		# 游戏状态
@@ -35,12 +35,12 @@ class Game:
 		self.screen.fill((0, 0, 0))
 		
 		# 标题
-		title = self.font.render('农场模拟游戏', True, (255, 255, 255))
+		title = self.font.render('Pawfishing AI Demo', True, (255, 255, 255))
 		title_rect = title.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//3))
 		self.screen.blit(title, title_rect)
 		
 		# 副标题
-		subtitle = self.small_font.render('ASCII矮人要塞风格', True, (200, 200, 200))
+		subtitle = self.small_font.render('ASCII Style Fishing Game', True, (200, 200, 200))
 		subtitle_rect = subtitle.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//3 + 40))
 		self.screen.blit(subtitle, subtitle_rect)
 		
@@ -60,7 +60,7 @@ class Game:
 		
 		# 说明文字
 		desc_lines = [
-			'使用ASCII字符渲染的农场模拟游戏',
+			'使用ASCII字符渲染的钓鱼游戏',
 			'@ = 玩家  T = 树木  * = 花朵  ~ = 水',
 			'ESC键返回主菜单'
 		]
@@ -104,6 +104,20 @@ class Game:
 				if event.key == pygame.K_ESCAPE:
 					self.show_menu = True
 					self.level = None
+				elif self.level:
+					# 处理NPC对话输入
+					if self.level.handle_dialogue_input(event.key):
+						continue  # 如果对话系统处理了输入，跳过其他处理
+					
+					# 处理NPC交互 (用T键与NPC对话)
+					if event.key == pygame.K_t:
+						nearby_npc = self.level.check_npc_interaction()
+						if nearby_npc:
+							self.level.start_npc_dialogue(nearby_npc)
+					
+					# 处理任务面板切换 (用Q键打开/关闭任务面板)
+					elif event.key == pygame.K_q:
+						self.level.quest_panel.toggle()
 		
 		return True
 	

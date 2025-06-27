@@ -65,39 +65,91 @@ class Overlay:
 
 	def display(self):
 		# 显示当前工具
-		tool_name = self.tool_names.get(self.player.selected_tool, self.player.selected_tool)
-		tool_text = f"当前工具: {tool_name} [Q键切换]"
+		# tool_name = self.tool_names.get(self.player.selected_tool, self.player.selected_tool)
+		# tool_text = f"当前工具: {tool_name} [Q键切换]"
+		
+		# self.draw_text_box(
+		# 	tool_text, 
+		# 	OVERLAY_POSITIONS['tool'], 
+		# 	self.font,
+		# 	self.selected_color,
+		# 	self.bg_color,
+		# 	self.border_color
+		# )
+		
+		# # 显示当前种子
+		# seed_name = self.seed_names.get(self.player.selected_seed, self.player.selected_seed)
+		# seed_count = self.player.seed_inventory.get(self.player.selected_seed, 0)
+		# seed_text = f"当前种子: {seed_name} x{seed_count} [E键切换]"
+		
+		# self.draw_text_box(
+		# 	seed_text,
+		# 	OVERLAY_POSITIONS['seed'],
+		# 	self.font, 
+		# 	self.selected_color,
+		# 	self.bg_color,
+		# 	self.border_color
+		# )
+		
+		# 显示鱼类库存信息
+		fish_count = self.player.get_total_fish_count()
+		fish_value = self.player.get_total_fish_value()
+		fish_text = f"鱼类库存: {fish_count}条 (价值: {fish_value}金币)"
 		
 		self.draw_text_box(
-			tool_text, 
-			OVERLAY_POSITIONS['tool'], 
+			fish_text,
+			(SCREEN_WIDTH // 2, 50),  # 屏幕上方中央
 			self.font,
-			self.selected_color,
+			(0, 200, 255),  # 蓝色
 			self.bg_color,
 			self.border_color
 		)
 		
-		# 显示当前种子
-		seed_name = self.seed_names.get(self.player.selected_seed, self.player.selected_seed)
-		seed_count = self.player.seed_inventory.get(self.player.selected_seed, 0)
-		seed_text = f"当前种子: {seed_name} x{seed_count} [E键切换]"
-		
-		self.draw_text_box(
-			seed_text,
-			OVERLAY_POSITIONS['seed'],
-			self.font, 
-			self.selected_color,
-			self.bg_color,
-			self.border_color
-		)
+		# 显示当前任务信息
+		quest_info = self.player.get_current_quest_info()
+		if quest_info:
+			quest_y_start = 100
+			# 任务标题
+			quest_title = f"【当前任务】{quest_info['title']}"
+			self.draw_text_box(
+				quest_title,
+				(SCREEN_WIDTH // 2, quest_y_start),
+				self.font,
+				(255, 215, 0),  # 金色
+				self.bg_color,
+				self.border_color
+			)
+			
+			# 任务描述
+			quest_desc = quest_info['description']
+			self.draw_text_box(
+				quest_desc,
+				(SCREEN_WIDTH // 2, quest_y_start + 30),
+				self.small_font,
+				(200, 200, 200),  # 灰色
+				self.bg_color,
+				self.border_color
+			)
+			
+			# 任务进度
+			for i, progress in enumerate(quest_info['progress']):
+				progress_text = f"进度: {progress}"
+				self.draw_text_box(
+					progress_text,
+					(SCREEN_WIDTH // 2, quest_y_start + 60 + i * 20),
+					self.small_font,
+					(100, 255, 100),  # 绿色
+					self.bg_color,
+					self.border_color
+				)
 		
 		# 显示操作提示
 		control_tips = [
 			"【操作说明】",
-			"空格键: 使用工具",
-			"左Ctrl: 种植种子", 
+			"空格键: 钓鱼 (在水边)",
 			"方向键: 移动角色",
-			"回车键: 交互/睡觉"
+			"T键: 与NPC对话",
+			"回车键: 交互"
 		]
 		
 		# 在屏幕右上角显示控制提示
@@ -107,7 +159,7 @@ class Overlay:
 			font = self.font if i == 0 else self.small_font
 			text_surface = font.render(tip, True, color)
 			text_rect = text_surface.get_rect()
-			text_rect.topright = (SCREEN_WIDTH - 20, 40 + i * 22)
+			text_rect.topright = (SCREEN_WIDTH - 20, 40 + i * 26)
 			
 			# 如果是标题，添加背景
 			if i == 0:
