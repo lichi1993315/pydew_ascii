@@ -170,25 +170,50 @@ class QuestPanel:
         """获取任务进度信息"""
         progress_info = []
         
-        for objective, target in quest.objectives.items():
-            if objective == "fishing_attempts":
+        for objective_type, params in quest.objectives.items():
+            if objective_type == "fishing_attempts":
+                required_num = params.get("num", 1)
                 current = player.fishing_contest_stats["total_attempts"]
-                progress_info.append(f"钓鱼次数: {current}/{target}")
-            elif objective == "catch_big_fish":
-                current = player.fishing_contest_stats["max_fish_length"]
-                progress_info.append(f"最大鱼长度: {current}cm/{target}cm")
-            elif objective == "catch_champion_fish":
-                current = player.fishing_contest_stats["max_fish_length"]
-                progress_info.append(f"冠军鱼长度: {current}cm/{target}cm")
-            elif objective == "catch_rare_fish":
-                current = player.fishing_contest_stats["rare_fish_count"]
-                progress_info.append(f"稀有鱼: {current}/{target}")
-            elif objective == "talk_to_fisherman":
-                status = "已完成" if player.fishing_contest_stats["fisherman_talked"] else "未完成"
-                progress_info.append(f"与渔夫对话: {status}")
-            elif objective == "sell_fish":
-                status = "已完成" if player.fishing_contest_stats["trader_sold"] else "未完成"
-                progress_info.append(f"向商人出售鱼类: {status}")
+                progress_info.append(f"钓鱼次数: {current}/{required_num}")
+            
+            elif objective_type == "catch_fish":
+                minimum_length = params.get("minimum_length", 0)
+                minimum_rarity = params.get("minimum_rarity", None)
+                required_num = params.get("num", 1)
+                
+                if minimum_length > 0:
+                    current = player.fishing_contest_stats["max_fish_length"]
+                    progress_info.append(f"最大鱼长度: {current}cm/{minimum_length}cm")
+                elif minimum_rarity:
+                    # 计算满足稀有度要求的鱼数量
+                    rarity_levels = {"common": 1, "uncommon": 2, "rare": 3, "epic": 4, "legendary": 5}
+                    min_level = rarity_levels.get(minimum_rarity, 3)
+                    current_count = 0
+                    
+                    for fish in player.fish_inventory:
+                        fish_rarity_level = rarity_levels.get(fish.get("rarity", "common"), 1)
+                        if fish_rarity_level >= min_level:
+                            current_count += 1
+                    
+                    # 检查历史统计
+                    if minimum_rarity == "rare":
+                        current_count = max(current_count, player.fishing_contest_stats["rare_fish_count"])
+                    
+                    progress_info.append(f"稀有鱼({minimum_rarity}+): {current_count}/{required_num}")
+            
+            elif objective_type == "talk_to_npc":
+                target = params.get("target", "")
+                if target == "fisherman":
+                    status = "已完成" if player.fishing_contest_stats["fisherman_talked"] else "未完成"
+                    progress_info.append(f"与渔夫对话: {status}")
+                # 可以添加更多NPC
+            
+            elif objective_type == "sell_fish":
+                fish_type = params.get("fish_type", "all")
+                if fish_type == "all":
+                    status = "已完成" if player.fishing_contest_stats["trader_sold"] else "未完成"
+                    progress_info.append(f"向商人出售鱼类: {status}")
+                # 可以添加特定鱼类出售
         
         return progress_info
     

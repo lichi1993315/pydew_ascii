@@ -114,10 +114,6 @@ class Game:
 						nearby_npc = self.level.check_npc_interaction()
 						if nearby_npc:
 							self.level.start_npc_dialogue(nearby_npc)
-					
-					# 处理任务面板切换 (用Q键打开/关闭任务面板)
-					elif event.key == pygame.K_q:
-						self.level.quest_panel.toggle()
 		
 		return True
 	

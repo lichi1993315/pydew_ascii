@@ -116,6 +116,7 @@ class Level:
 					interaction = self.interaction_sprites,
 					soil_layer = self.soil_layer,
 					toggle_shop = self.toggle_shop,
+					quest_panel = self.quest_panel,
 					ascii_mode = True)
 				
 				# 设置水精灵组，用于钓鱼功能
@@ -269,11 +270,26 @@ class Level:
 						self.npc_manager.end_dialogue()
 						self.current_interacting_npc = None
 			elif choice_index == -1:
-				# 对话结束
-				print(f"[NPC对话] 玩家结束对话")
-				self.dialogue_ui.end_dialogue()
-				self.npc_manager.end_dialogue()
-				self.current_interacting_npc = None
+				# 检查是否有任务对话状态，如果有则继续对话
+				if (self.npc_manager.current_dialogue_state and 
+					not self.npc_manager.current_dialogue_state.is_quest_offer):
+					# 继续任务对话
+					continued_dialogue = self.npc_manager.continue_dialogue(self.player)
+					if continued_dialogue:
+						print(f"[NPC对话] 继续任务对话: {continued_dialogue[0].text[:50]}...")
+						self.dialogue_ui.start_dialogue(continued_dialogue)
+					else:
+						# 对话结束
+						print(f"[NPC对话] 任务对话结束")
+						self.dialogue_ui.end_dialogue()
+						self.npc_manager.end_dialogue()
+						self.current_interacting_npc = None
+				else:
+					# 普通对话结束
+					print(f"[NPC对话] 玩家结束对话")
+					self.dialogue_ui.end_dialogue()
+					self.npc_manager.end_dialogue()
+					self.current_interacting_npc = None
 			
 			return True  # 表示输入被对话系统处理了
 		return False  # 表示输入没有被处理
@@ -332,6 +348,9 @@ class Level:
 		
 		# 任务面板渲染
 		self.quest_panel.render(self.display_surface, self.player)
+		
+		# 日志面板渲染
+		self.player.render_log_panel(self.display_surface)
 
 		# 过渡动画
 		if self.player.sleep:
