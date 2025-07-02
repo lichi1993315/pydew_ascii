@@ -125,6 +125,8 @@ class Player(pygame.sprite.Sprite):
 			"max_fish_length": 0,         # 钓到的最长鱼长度
 			"rare_fish_count": 0,         # 稀有鱼数量
 			"fisherman_talked": False,    # 是否与渔夫对话过
+			"farmer_talked": False,       # 是否与农民对话过
+			"trader_talked": False,       # 是否与商人对话过
 			"trader_sold": False,         # 是否向商人出售过
 		}
 
@@ -541,19 +543,19 @@ class Player(pygame.sprite.Sprite):
 						# 钓鱼相关任务（长度、稀有度等）
 						minimum_length = params.get("minimum_length", 0)
 						minimum_rarity = params.get("minimum_rarity", None)
-						required_num = params.get("num", 1)
+						required_num = 1
 						
 						current_count = 0
 						
 						# 检查长度要求
 						if minimum_length > 0:
 							if self.fishing_contest_stats["max_fish_length"] >= minimum_length:
-								current_count = 1  # 只要达到过一次就算完成
+								current_count += 1
 						
 						# 检查稀有度要求
 						elif minimum_rarity:
 							rarity_levels = {"common": 1, "uncommon": 2, "rare": 3, "epic": 4, "legendary": 5}
-							min_level = rarity_levels.get(minimum_rarity, 3)
+							min_level = rarity_levels.get(minimum_rarity, 1)
 							
 							# 计算满足稀有度要求的鱼数量
 							for fish in self.fish_inventory:
@@ -571,17 +573,20 @@ class Player(pygame.sprite.Sprite):
 					elif objective_type == "talk_to_npc":
 						# 与NPC对话
 						target = params.get("target", "")
-						required_num = params.get("num", 1)
 						
 						if target == "fisherman":
 							if not self.fishing_contest_stats["fisherman_talked"]:
 								all_completed = False
 						# 可以在这里添加更多NPC对话检查
-					
+						elif target == "trader":
+							if not self.fishing_contest_stats["trader_talked"]:
+								all_completed = False
+						elif target == "farmer":
+							if not self.fishing_contest_stats["farmer_talked"]:
+								all_completed = False
 					elif objective_type == "sell_fish":
 						# 出售鱼类
 						fish_type = params.get("fish_type", "all")
-						required_num = params.get("num", 1)
 						
 						if fish_type == "all":
 							if not self.fishing_contest_stats["trader_sold"]:
@@ -608,7 +613,6 @@ class Player(pygame.sprite.Sprite):
 			elif objective_type == "catch_fish":
 				minimum_length = params.get("minimum_length", 0)
 				minimum_rarity = params.get("minimum_rarity", None)
-				required_num = params.get("num", 1)
 				
 				if minimum_length > 0:
 					current = self.fishing_contest_stats["max_fish_length"]
@@ -639,9 +643,9 @@ class Player(pygame.sprite.Sprite):
 			
 			elif objective_type == "sell_fish":
 				fish_type = params.get("fish_type", "all")
-				if fish_type == "all":
-					status = "已完成" if self.fishing_contest_stats["trader_sold"] else "未完成"
-					progress_info.append(f"向商人出售鱼类: {status}")
+				# if fish_type == "all":
+				status = "已完成" if self.fishing_contest_stats["trader_sold"] else "未完成"
+				progress_info.append(f"向商人出售鱼类: {status}")
 				# 可以添加特定鱼类出售
 		
 		return {

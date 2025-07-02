@@ -179,7 +179,6 @@ class QuestPanel:
             elif objective_type == "catch_fish":
                 minimum_length = params.get("minimum_length", 0)
                 minimum_rarity = params.get("minimum_rarity", None)
-                required_num = params.get("num", 1)
                 
                 if minimum_length > 0:
                     current = player.fishing_contest_stats["max_fish_length"]
@@ -206,13 +205,18 @@ class QuestPanel:
                 if target == "fisherman":
                     status = "已完成" if player.fishing_contest_stats["fisherman_talked"] else "未完成"
                     progress_info.append(f"与渔夫对话: {status}")
-                # 可以添加更多NPC
+                elif target == "trader":
+                    status = "已完成" if player.fishing_contest_stats["trader_talked"] else "未完成" 
+                    progress_info.append(f"与商人对话: {status}")
+                elif target == "farmer":
+                    status = "已完成" if player.fishing_contest_stats["farmer_talked"] else "未完成"
+                    progress_info.append(f"与农民对话: {status}")
             
             elif objective_type == "sell_fish":
                 fish_type = params.get("fish_type", "all")
-                if fish_type == "all":
-                    status = "已完成" if player.fishing_contest_stats["trader_sold"] else "未完成"
-                    progress_info.append(f"向商人出售鱼类: {status}")
+                # if fish_type == "all":
+                status = "已完成" if player.fishing_contest_stats["trader_sold"] else "未完成"
+                progress_info.append(f"向商人出售鱼类: {status}")
                 # 可以添加特定鱼类出售
         
         return progress_info

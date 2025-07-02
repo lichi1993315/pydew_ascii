@@ -222,13 +222,13 @@ class NPCManager:
         farmer = FarmerNPC("王大赛", (600, 500))
         self.add_npc("farmer_wang", farmer)
     
-    def refresh_all_quest_pools(self):
+    def refresh_all_quest_pools(self, player=None):
         """刷新所有NPC的任务池"""
         for npc_id, npc in self.npcs.items():
             if isinstance(npc, (FishermanNPC, FarmerNPC)):
-                self.refresh_npc_quest_pool(npc_id)
+                self.refresh_npc_quest_pool(npc_id, player)
     
-    def refresh_npc_quest_pool(self, npc_id: str):
+    def refresh_npc_quest_pool(self, npc_id: str, player=None):
         """刷新指定NPC的任务池"""
         npc = self.get_npc(npc_id)
         if not npc:
@@ -242,7 +242,7 @@ class NPCManager:
             if quest_preferences:
                 quest_type = random.choice(quest_preferences)
                 difficulty = random.choice(["easy", "medium", "hard"])
-                quest = self.quest_library.generate_random_quest(quest_type, difficulty)
+                quest = self.quest_library.generate_random_quest(quest_type, difficulty, player)
                 quests.append(quest)
         
         self.npc_quest_pools[npc_id] = quests
@@ -251,7 +251,7 @@ class NPCManager:
     def get_npc_quest_preferences(self, npc) -> List[str]:
         """获取NPC的任务偏好"""
         if isinstance(npc, FishermanNPC):
-            return ["fishing_attempts", "catch_big_fish", "catch_rare_fish", "consecutive_fishing"]
+            return ["fishing_attempts", "catch_big_fish", "catch_rare_fish"]
         elif isinstance(npc, FarmerNPC):
             return ["talk_to_npc", "sell_fish", "catch_big_fish", "fishing_attempts"]
         else:
@@ -260,7 +260,7 @@ class NPCManager:
     def get_available_quest_for_npc(self, npc_id: str, player) -> Optional[Quest]:
         """获取NPC的可用任务"""
         if npc_id not in self.npc_quest_pools:
-            self.refresh_npc_quest_pool(npc_id)
+            self.refresh_npc_quest_pool(npc_id, player)
         
         available_quests = self.npc_quest_pools.get(npc_id, [])
         active_quest_ids = [q.quest_id for q in player.active_quests] if hasattr(player, 'active_quests') else []
@@ -277,7 +277,7 @@ class NPCManager:
             if quest_preferences:
                 quest_type = random.choice(quest_preferences)
                 difficulty = random.choice(["easy", "medium", "hard"])
-                new_quest = self.quest_library.generate_random_quest(quest_type, difficulty)
+                new_quest = self.quest_library.generate_random_quest(quest_type, difficulty, player)
                 
                 # 添加到任务池
                 if npc_id not in self.npc_quest_pools:
@@ -663,8 +663,7 @@ class QuestLibrary:
                     "成为钓大鱼的专家"
                 ],
                 "params": {
-                    "minimum_length": [25, 30, 35, 40, 45, 50, 60, 70],
-                    "num": [1, 2, 3]
+                    "minimum_length": [25, 30, 35, 40, 45, 50, 60, 70]
                 },
                 "rewards": {
                     "money": [100, 150, 200, 300, 500, 800],
@@ -688,7 +687,6 @@ class QuestLibrary:
                 ],
                 "params": {
                     "minimum_rarity": ["uncommon", "rare", "epic", "legendary"],
-                    "num": [1, 2, 3, 5]
                 },
                 "rewards": {
                     "money": [150, 250, 400, 600, 1000],
@@ -711,8 +709,7 @@ class QuestLibrary:
                      "扩展你的人际网络"
                  ],
                 "params": {
-                    "target": ["fisherman", "trader", "farmer"],
-                    "num": [1, 2, 3]
+                    "target": ["fisherman", "trader", "farmer"]
                 },
                 "rewards": {
                     "money": [25, 50, 75, 100],
@@ -731,12 +728,11 @@ class QuestLibrary:
                 "descriptions": [
                     "将钓到的鱼类出售获得收益",
                     "参与镇上的经济循环",
-                    "体验渔业贸易的完整流程",
+                    "售卖你的鱼，体验渔业贸易的完整流程",
                     "成为活跃的市场参与者"
                 ],
                 "params": {
                     "fish_type": ["all", "common", "uncommon", "rare"],
-                    "num": [1, 3, 5, 10]
                 },
                 "rewards": {
                     "money": [50, 100, 150, 200, 300],
@@ -746,28 +742,6 @@ class QuestLibrary:
                 }
             },
             
-            # 连续钓鱼类任务
-            "consecutive_fishing": {
-                "titles": [
-                    "连续作战", "不间断挑战", "持续钓鱼", "马拉松钓鱼",
-                    "耐力测试", "连击挑战", "持久战", "不停歇"
-                ],
-                "descriptions": [
-                    "连续钓鱼而不中断",
-                    "测试你的钓鱼耐力和专注度",
-                    "挑战连续钓鱼的记录",
-                    "保持钓鱼的节奏和状态"
-                ],
-                "params": {
-                    "consecutive_count": [3, 5, 7, 10, 15]
-                },
-                "rewards": {
-                    "money": [80, 120, 180, 250, 400],
-                    "items": [
-                        {"fish_bait": 12}, {"fish_bait": 20}, {"fish_bait": 35}
-                    ]
-                }
-            }
         }
         
         # 任务难度和奖励的对应关系
@@ -778,7 +752,7 @@ class QuestLibrary:
             "expert": {"money": 3.0, "items": 2.5}
         }
     
-    def generate_random_quest(self, quest_type: str = None, difficulty: str = "medium") -> Quest:
+    def generate_random_quest(self, quest_type: str = None, difficulty: str = "medium", player=None) -> Quest:
         """生成随机任务"""
         if quest_type is None:
             quest_type = random.choice(list(self.quest_templates.keys()))
@@ -801,28 +775,74 @@ class QuestLibrary:
             objectives["fishing_attempts"] = params
             
         elif quest_type == "catch_big_fish":
-            params["minimum_length"] = random.choice(template["params"]["minimum_length"])
-            params["num"] = random.choice(template["params"]["num"])
+            # 根据玩家当前最大鱼长度调整任务难度
+            available_lengths = template["params"]["minimum_length"]
+            
+            if player and hasattr(player, 'fishing_contest_stats'):
+                current_max_length = player.fishing_contest_stats.get("max_fish_length", 0)
+                # 筛选出比玩家当前最大长度更长的要求
+                challenging_lengths = [length for length in available_lengths if length > current_max_length]
+                
+                if challenging_lengths:
+                    # 如果有更高的挑战，随机选择一个
+                    params["minimum_length"] = random.choice(challenging_lengths)
+                    print(f"[任务生成] 根据玩家当前最大鱼长度 {current_max_length}cm，生成挑战长度 {params['minimum_length']}cm")
+                else:
+                    # 如果玩家已经超过了所有预设长度，生成比当前最大长度更高的挑战
+                    params["minimum_length"] = current_max_length + random.randint(5, 15)
+                    print(f"[任务生成] 玩家已达到高水平，生成超越挑战长度 {params['minimum_length']}cm")
+            else:
+                # 没有玩家信息时使用默认逻辑
+                params["minimum_length"] = random.choice(available_lengths)
+            
             objectives["catch_fish"] = params
             
         elif quest_type == "catch_rare_fish":
-            params["minimum_rarity"] = random.choice(template["params"]["minimum_rarity"])
-            params["num"] = random.choice(template["params"]["num"])
+            # 根据玩家当前最高稀有度调整任务难度
+            available_rarities = template["params"]["minimum_rarity"]
+            rarity_levels = {"common": 1, "uncommon": 2, "rare": 3, "epic": 4, "legendary": 5}
+            
+            if player and hasattr(player, 'fish_inventory'):
+                # 计算玩家当前钓到的最高稀有度
+                current_max_rarity_level = 0
+                for fish in player.fish_inventory:
+                    fish_rarity = fish.get("rarity", "common")
+                    fish_level = rarity_levels.get(fish_rarity, 1)
+                    current_max_rarity_level = max(current_max_rarity_level, fish_level)
+                
+                # 筛选出比当前最高稀有度更高的要求
+                challenging_rarities = []
+                for rarity in available_rarities:
+                    if rarity_levels.get(rarity, 1) > current_max_rarity_level:
+                        challenging_rarities.append(rarity)
+                
+                if challenging_rarities:
+                    # 如果有更高的挑战，随机选择一个
+                    params["minimum_rarity"] = random.choice(challenging_rarities)
+                    current_rarity_name = ""
+                    for rarity, level in rarity_levels.items():
+                        if level == current_max_rarity_level:
+                            current_rarity_name = rarity
+                            break
+                    print(f"[任务生成] 根据玩家当前最高稀有度 {current_rarity_name}，生成挑战稀有度 {params['minimum_rarity']}")
+                else:
+                    # 如果玩家已经钓到最高稀有度，使用最高稀有度作为挑战
+                    params["minimum_rarity"] = "legendary"
+                    print(f"[任务生成] 玩家已达到最高稀有度，生成传说级挑战")
+            else:
+                # 没有玩家信息时使用默认逻辑
+                params["minimum_rarity"] = random.choice(available_rarities)
+                
             objectives["catch_fish"] = params
             
         elif quest_type == "talk_to_npc":
             params["target"] = random.choice(template["params"]["target"])
-            params["num"] = random.choice(template["params"]["num"])
             objectives["talk_to_npc"] = params
             
         elif quest_type == "sell_fish":
             params["fish_type"] = random.choice(template["params"]["fish_type"])
-            params["num"] = random.choice(template["params"]["num"])
             objectives["sell_fish"] = params
             
-        elif quest_type == "consecutive_fishing":
-            params["consecutive_count"] = random.choice(template["params"]["consecutive_count"])
-            objectives["consecutive_fishing"] = params
         
         # 生成奖励
         rewards = self._generate_rewards(template, difficulty, params)
@@ -882,9 +902,6 @@ class QuestLibrary:
             }
             bonus *= rarity_bonus.get(params["minimum_rarity"], 1.0)
         
-        # 连续钓鱼加成
-        if "consecutive_count" in params:
-            bonus *= (1 + params["consecutive_count"] * 0.15)
         
         return bonus
     
@@ -920,13 +937,8 @@ class QuestLibrary:
                 "通过出售鱼类，你能体验到完整的渔业循环。",
                 "这个镇上的商人总是需要新鲜的鱼类。",
                 f"试着出售一些{params.get('fish_type', '鱼类')}吧，这对大家都有好处！"
-            ],
-            "consecutive_fishing": [
-                "钓鱼需要耐心和专注。",
-                "真正的钓鱼大师能够保持长时间的专注状态。",
-                "连续不断的钓鱼是对意志力的考验。",
-                f"你能连续钓{params.get('consecutive_count', 5)}次鱼而不中断吗？"
             ]
+            
         }
         
         return dialogue_templates.get(quest_type, [
@@ -936,7 +948,7 @@ class QuestLibrary:
             "祝你好运，年轻的冒险者！"
         ])
     
-    def generate_quest_batch(self, count: int = 5, difficulty_mix: bool = True) -> List[Quest]:
+    def generate_quest_batch(self, count: int = 5, difficulty_mix: bool = True, player=None) -> List[Quest]:
         """生成一批任务"""
         quests = []
         quest_types = list(self.quest_templates.keys())
@@ -945,18 +957,18 @@ class QuestLibrary:
         for _ in range(count):
             quest_type = random.choice(quest_types)
             difficulty = random.choice(difficulties) if difficulty_mix else "medium"
-            quest = self.generate_random_quest(quest_type, difficulty)
+            quest = self.generate_random_quest(quest_type, difficulty, player)
             quests.append(quest)
         
         return quests
 
-    def refresh_random_npc_quests(self, npc_manager=None):
+    def refresh_random_npc_quests(self, npc_manager=None, player=None):
         """随机刷新一个NPC的任务池（可以在游戏中定期调用）"""
         if npc_manager:
             npc_ids = list(npc_manager.npcs.keys())
             if npc_ids:
                 random_npc_id = random.choice(npc_ids)
-                npc_manager.refresh_npc_quest_pool(random_npc_id)
+                npc_manager.refresh_npc_quest_pool(random_npc_id, player)
                 print(f"[任务库] 随机刷新了{random_npc_id}的任务池")
     
     def get_quest_statistics(self) -> dict:
