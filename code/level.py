@@ -13,6 +13,8 @@ from menu import Menu
 from npc_system import NPCManager
 from dialogue_ui import DialogueUI
 from quest_panel import QuestPanel  # 添加任务面板导入
+from chat_panel import ChatPanel  # 添加聊天面板导入
+from chat_ai import get_chat_ai  # 添加聊天AI导入
 
 class Level:
 	"""
@@ -43,7 +45,21 @@ class Level:
 		# 任务面板
 		self.quest_panel = QuestPanel()
 		
+		# 聊天面板
+		self.chat_panel = ChatPanel(SCREEN_WIDTH, SCREEN_HEIGHT)
+		
+		# 聊天AI系统
+		self.chat_ai = get_chat_ai()
+		self.chat_panel.set_message_callback(self.handle_player_chat_message)
+		self.chat_panel.set_chat_ai_instance(self.chat_ai)  # 设置AI实例引用
+		self.pending_npc_response = None  # 待处理的NPC回复
+		
 		self.setup()
+		
+		# 设置玩家对聊天面板的引用
+		if self.player:
+			self.player.chat_panel = self.chat_panel
+		
 		self.overlay = Overlay(self.player)
 		self.transition = Transition(self.reset, self.player)
 
@@ -235,9 +251,13 @@ class Level:
 		if npc and not self.dialogue_ui.is_active():
 			print(f"[NPC对话] 开始与 {npc.npc_id} 对话")
 			self.current_interacting_npc = npc
+			
 			# 获取NPCManager中的NPC实例
 			npc_instance = self.npc_manager.get_npc(npc.npc_id)
 			if npc_instance:
+				# 添加对话开始消息到聊天面板
+				self.chat_panel.add_system_message(f"开始与 {npc_instance.name} 对话")
+				
 				# 使用NPCManager的start_dialogue方法，这会触发任务检查
 				dialogues = self.npc_manager.start_dialogue(npc_instance, self.player)
 				if dialogues:
@@ -256,6 +276,12 @@ class Level:
 				# 处理选择
 				if self.current_interacting_npc:
 					print(f"[NPC对话] 玩家选择选项 {choice_index}")
+					
+					# 记录玩家的选择到聊天面板
+					if hasattr(self.dialogue_ui.current_dialogue, 'choices') and self.dialogue_ui.current_dialogue.choices:
+						choice_text = self.dialogue_ui.current_dialogue.choices[choice_index]
+						self.chat_panel.add_message(choice_text, "玩家")
+					
 					response = self.npc_manager.handle_dialogue_choice(
 						self.current_interacting_npc.npc_id, 
 						choice_index, 
@@ -263,9 +289,16 @@ class Level:
 					)
 					if response:
 						print(f"[NPC对话] NPC回复: {response[0].text[:50]}...")
+						
+						# 记录NPC回复到聊天面板
+						npc_instance = self.npc_manager.get_npc(self.current_interacting_npc.npc_id)
+						if npc_instance:
+							self.chat_panel.add_message(response[0].text, npc_instance.name)
+						
 						self.dialogue_ui.start_dialogue(response)
 					else:
 						print(f"[NPC对话] 对话结束")
+						self.chat_panel.add_system_message("对话结束")
 						self.dialogue_ui.end_dialogue()
 						self.npc_manager.end_dialogue()
 						self.current_interacting_npc = None
@@ -277,22 +310,86 @@ class Level:
 					continued_dialogue = self.npc_manager.continue_dialogue(self.player)
 					if continued_dialogue:
 						print(f"[NPC对话] 继续任务对话: {continued_dialogue[0].text[:50]}...")
+						
+						# 记录继续的对话到聊天面板
+						npc_instance = self.npc_manager.get_npc(self.current_interacting_npc.npc_id)
+						if npc_instance:
+							self.chat_panel.add_message(continued_dialogue[0].text, npc_instance.name)
+						
 						self.dialogue_ui.start_dialogue(continued_dialogue)
 					else:
 						# 对话结束
 						print(f"[NPC对话] 任务对话结束")
+						self.chat_panel.add_system_message("对话结束")
 						self.dialogue_ui.end_dialogue()
 						self.npc_manager.end_dialogue()
 						self.current_interacting_npc = None
 				else:
 					# 普通对话结束
 					print(f"[NPC对话] 玩家结束对话")
+					self.chat_panel.add_system_message("对话结束")
 					self.dialogue_ui.end_dialogue()
 					self.npc_manager.end_dialogue()
 					self.current_interacting_npc = None
 			
 			return True  # 表示输入被对话系统处理了
 		return False  # 表示输入没有被处理
+	
+	def handle_player_chat_message(self, message: str):
+		"""处理玩家聊天消息并生成NPC回复"""
+		import asyncio
+		import threading
+		
+		# 检测附近的NPC
+		nearby_npc_id = self.chat_ai.get_nearby_npc(
+			self.player.rect.center, 
+			self.npc_sprites
+		)
+		
+		if nearby_npc_id:
+			# 获取NPC数据并显示思考指示器
+			npc_data = self.npc_manager.get_npc(nearby_npc_id)
+			if npc_data:
+				print(f"[Level] 找到附近NPC: {npc_data.name} ({nearby_npc_id})")
+				
+				# 立即显示"正在思考"消息
+				self.chat_panel.add_thinking_message(npc_data.name)
+				
+				# 在新线程中处理AI回复，避免阻塞游戏循环
+				def generate_response():
+					try:
+						# 创建新的事件循环
+						loop = asyncio.new_event_loop()
+						asyncio.set_event_loop(loop)
+						
+						# 获取游戏上下文
+						context = self.chat_ai.add_context_from_game_state(self.player, self)
+						
+						# 生成AI回复
+						response = loop.run_until_complete(
+							self.chat_ai.generate_npc_response(nearby_npc_id, message, context)
+						)
+						
+						# 在主线程中处理回复（替换思考消息）
+						self.pending_npc_response = (npc_data.name, response, True)  # 第三个参数表示替换思考消息
+						
+						loop.close()
+						
+					except Exception as e:
+						print(f"[聊天AI] 生成回复失败: {e}")
+						# 添加错误回复
+						self.pending_npc_response = (npc_data.name, "抱歉，我没听清楚你在说什么...", True)
+				
+				# 启动线程
+				response_thread = threading.Thread(target=generate_response)
+				response_thread.daemon = True
+				response_thread.start()
+			else:
+				print(f"[Level] 找到NPC ID但无法获取NPC数据: {nearby_npc_id}")
+		else:
+			# 没有附近的NPC，添加系统消息
+			print("[Level] 没有找到附近的NPC")
+			self.chat_panel.add_system_message("附近没有人能听到你的话...")
 	
 	def show_npc_interaction_hint(self):
 		"""显示NPC交互提示"""
@@ -351,6 +448,25 @@ class Level:
 		
 		# 日志面板渲染
 		self.player.render_log_panel(self.display_surface)
+		
+		# 处理待处理的NPC回复
+		if self.pending_npc_response:
+			if len(self.pending_npc_response) == 3:
+				npc_name, response_text, replace_thinking = self.pending_npc_response
+				if replace_thinking:
+					self.chat_panel.replace_thinking_with_response(npc_name, response_text)
+				else:
+					self.chat_panel.add_ai_response(response_text, npc_name)
+			else:
+				# 兼容旧格式
+				npc_name, response_text = self.pending_npc_response
+				self.chat_panel.add_ai_response(response_text, npc_name)
+			
+			self.pending_npc_response = None
+		
+		# 聊天面板更新和渲染
+		self.chat_panel.update(dt)
+		self.chat_panel.render(self.display_surface)
 
 		# 过渡动画
 		if self.player.sleep:

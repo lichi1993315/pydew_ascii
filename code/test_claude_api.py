@@ -82,7 +82,7 @@ async def test_claude_api():
         
         # 发送请求
         response = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-20250514",
             max_tokens=1024,
             messages=[
                 {
@@ -126,7 +126,7 @@ async def test_claude_api():
         
         # 显示使用统计
         print(f"\n📊 API调用统计:")
-        print(f"   模型: claude-3-5-sonnet-20241022")
+        print(f"   模型: claude-sonnet-4-20250514")
         print(f"   请求时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"   Token限制: 2048")
         print(f"   温度参数: 0.7")
@@ -181,7 +181,7 @@ async def test_game_dialogue():
         print("🗣️  测试角色对话生成...")
         
         response = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-20250514",
             max_tokens=2048,
             temperature=0.7,
             messages=[

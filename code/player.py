@@ -7,7 +7,7 @@ from log_panel import LogPanel
 import datetime
 
 class Player(pygame.sprite.Sprite):
-	def __init__(self, pos, group, collision_sprites, tree_sprites, interaction, soil_layer, toggle_shop, quest_panel=None, ascii_mode=False):
+	def __init__(self, pos, group, collision_sprites, tree_sprites, interaction, soil_layer, toggle_shop, quest_panel=None, ascii_mode=False, chat_panel=None):
 		super().__init__(group)
 
 		# ASCII模式设置
@@ -139,6 +139,9 @@ class Player(pygame.sprite.Sprite):
 		
 		# 任务面板
 		self.quest_panel = quest_panel
+		
+		# 聊天面板引用
+		self.chat_panel = chat_panel
 
 		# interaction
 		self.tree_sprites = tree_sprites
@@ -663,6 +666,10 @@ class Player(pygame.sprite.Sprite):
 
 		# 处理日志面板输入（优先级高，即使在其他状态下也能操作）
 		self.handle_log_panel_input(keys)
+		
+		# 如果聊天面板的输入框是激活状态，禁用所有玩家输入
+		if self.chat_panel and self.chat_panel.is_input_focused():
+			return
 
 		if not self.timers['tool use'].active and not self.sleep and not self.is_fishing:
 			# directions 

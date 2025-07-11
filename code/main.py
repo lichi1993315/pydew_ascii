@@ -62,7 +62,8 @@ class Game:
 		desc_lines = [
 			'使用ASCII字符渲染的钓鱼游戏',
 			'@ = 玩家  T = 树木  * = 花朵  ~ = 水',
-			'ESC键返回主菜单'
+			'C键打开聊天面板  靠近NPC聊天',
+			'支持连续对话和滚动查看历史  ESC键返回主菜单'
 		]
 		
 		for i, line in enumerate(desc_lines):
@@ -100,10 +101,18 @@ class Game:
 			if event.type == pygame.QUIT:
 				return False
 			
+			# 优先处理聊天面板输入
+			if self.level and self.level.chat_panel.handle_input(event):
+				continue  # 如果聊天系统处理了输入，跳过其他处理
+			
 			if event.type == pygame.KEYDOWN:
 				if event.key == pygame.K_ESCAPE:
 					self.show_menu = True
 					self.level = None
+				elif event.key == pygame.K_c:
+					# C键切换聊天面板
+					if self.level:
+						self.level.chat_panel.toggle()
 				elif self.level:
 					# 处理NPC对话输入
 					if self.level.handle_dialogue_input(event.key):
