@@ -15,6 +15,8 @@ from dialogue_ui import DialogueUI
 from quest_panel import QuestPanel  # 添加任务面板导入
 from chat_panel import ChatPanel  # 添加聊天面板导入
 from chat_ai import get_chat_ai  # 添加聊天AI导入
+from cat_npc import CatManager  # 添加猫咪管理器导入
+from cat_info_ui import CatInfoUI  # 添加猫咪详情UI导入
 
 class Level:
 	"""
@@ -53,6 +55,12 @@ class Level:
 		self.chat_panel.set_message_callback(self.handle_player_chat_message)
 		self.chat_panel.set_chat_ai_instance(self.chat_ai)  # 设置AI实例引用
 		self.pending_npc_response = None  # 待处理的NPC回复
+		
+		# 猫咪管理器
+		self.cat_manager = CatManager()
+		
+		# 猫咪详情UI
+		self.cat_info_ui = CatInfoUI(SCREEN_WIDTH, SCREEN_HEIGHT)
 		
 		self.setup()
 		
@@ -179,6 +187,18 @@ class Level:
 			npc_manager=self.npc_manager,
 			groups=[self.all_sprites, self.npc_sprites, self.collision_sprites]
 		)
+		
+		# 创建猫咪NPCs
+		self.cat_manager.create_cats(
+			self.all_sprites, 
+			self.collision_sprites, 
+			self.npc_sprites, 
+			self.npc_manager
+		)
+		print(f"[Level] 创建了 {len(self.cat_manager.cats)} 只猫咪NPC")
+		
+		# 注册猫咪NPCs到NPC管理器
+		self.npc_manager.register_cat_npcs(self.cat_manager)
 
 	def player_add(self,item):
 		"""
@@ -244,6 +264,22 @@ class Level:
 			if distance <= interaction_distance:
 				# print(f"[NPC交互] 玩家靠近NPC: {npc.npc_id}, 距离: {distance:.1f}")
 				return npc
+		return None
+	
+	def check_cat_interaction(self):
+		"""检查猫咪NPC交互"""
+		interaction_distance = TILE_SIZE * 1.5  # 交互距离
+		
+		for cat in self.cat_manager.cats:
+			# 计算玩家与猫咪的距离
+			player_center = self.player.rect.center
+			cat_center = cat.rect.center
+			distance = ((player_center[0] - cat_center[0]) ** 2 + 
+					   (player_center[1] - cat_center[1]) ** 2) ** 0.5
+			
+			if distance <= interaction_distance:
+				# print(f"[猫咪交互] 玩家靠近猫咪: {cat.cat_name}, 距离: {distance:.1f}")
+				return cat
 		return None
 	
 	def start_npc_dialogue(self, npc):
@@ -393,6 +429,33 @@ class Level:
 	
 	def show_npc_interaction_hint(self):
 		"""显示NPC交互提示"""
+		# 如果猫咪详情UI正在显示，不显示提示
+		if self.cat_info_ui.is_active:
+			return
+		
+		# 优先检查猫咪交互
+		nearby_cat = self.check_cat_interaction()
+		if nearby_cat:
+			# 显示猫咪交互提示
+			from font_manager import FontManager
+			font_manager = FontManager.get_instance()
+			font = font_manager.load_chinese_font(32, "npc_hint_font")
+			hint_text = f"按 T 键查看 {nearby_cat.cat_name} 的详细信息"
+			text_surface = font.render(hint_text, True, (255, 182, 193))  # 粉色
+			text_rect = text_surface.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 100))
+			
+			# 绘制半透明背景
+			bg_rect = text_rect.inflate(20, 10)
+			bg_surface = pygame.Surface((bg_rect.width, bg_rect.height))
+			bg_surface.set_alpha(128)
+			bg_surface.fill((0, 0, 0))
+			self.display_surface.blit(bg_surface, bg_rect)
+			
+			# 绘制文本
+			self.display_surface.blit(text_surface, text_rect)
+			return
+		
+		# 检查其他NPC交互
 		nearby_npc = self.check_npc_interaction()
 		if nearby_npc and not self.dialogue_ui.is_active():
 			# 获取NPC信息
@@ -467,6 +530,9 @@ class Level:
 		# 聊天面板更新和渲染
 		self.chat_panel.update(dt)
 		self.chat_panel.render(self.display_surface)
+		
+		# 猫咪详情UI渲染
+		self.cat_info_ui.render(self.display_surface)
 
 		# 过渡动画
 		if self.player.sleep:

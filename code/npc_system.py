@@ -188,6 +188,35 @@ class FarmerNPC(BaseNPC):
         import random
         return random.choice(self.contest_tips)
 
+class CatNPCData(BaseNPC):
+    """猫咪NPC数据类 - 用于NPC管理器"""
+    
+    def __init__(self, name: str, pos: Tuple[int, int], personality: str, cat_id: str):
+        super().__init__(name, "cat", pos, 'ω')
+        self.personality = personality
+        self.cat_id = cat_id
+        self.mood_responses = {
+            "活泼好动": ["喵！你好呀！", "喵喵～想和我一起玩吗？", "跑跑跳跳真开心，喵～"],
+            "温顺安静": ["喵...你好...", "今天的阳光真温暖呢，喵...", "安安静静最舒服了，喵～"],
+            "好奇心强": ["喵？你是谁？", "这里有什么好玩的吗，喵？", "我要去探索新地方了，喵！"],
+            "慵懒可爱": ["喵...好困啊...", "让我再睡一会儿嘛，喵...", "懒懒的最舒服了，喵～"],
+            "聪明机灵": ["喵！看我的新把戏！", "我很聪明的，什么都会，喵～", "要不要看我翻跟头，喵？"],
+            "粘人撒娇": ["喵～摸摸我嘛～", "我最喜欢人类了，喵！", "抱抱我好不好，喵～"],
+            "独立自主": ["喵...我有自己的事要做...", "独立的猫不需要别人照顾，喵。", "我按自己的方式生活，喵～"],
+            "贪吃": ["喵！你有食物吗？", "肚子好饿啊，有小鱼干吗，喵？", "闻到香味了，在哪里呢，喵？"],
+            "胆小害羞": ["喵...不要靠太近...", "我有点害怕陌生人，喵...", "请温柔一点好吗，喵..."],
+            "淘气捣蛋": ["喵嘿嘿！要不要看我恶作剧？", "今天又搞了什么坏事呢，喵～", "调皮才有趣，你说对吧，喵？"]
+        }
+    
+    def get_greeting(self) -> str:
+        responses = self.mood_responses.get(self.personality, ["喵～"])
+        import random
+        return random.choice(responses)
+    
+    def interact(self, player) -> List[DialogueLine]:
+        greeting = self.get_greeting()
+        return [DialogueLine(self.name, greeting)]
+
 class NPCManager:
     """NPC管理器"""
     
@@ -221,6 +250,36 @@ class NPCManager:
         # 钓鱼大赛组织者
         farmer = FarmerNPC("王大赛", (600, 500))
         self.add_npc("farmer_wang", farmer)
+    
+    def register_cat_npcs(self, cat_manager):
+        """注册猫咪NPCs到NPC管理器"""
+        cat_data = [
+            ("小橘", "活泼好动，喜欢到处跑跳"),
+            ("小白", "温顺安静，喜欢晒太阳"),
+            ("小黑", "好奇心强，喜欢探索新事物"),
+            ("小灰", "慵懒可爱，总是想睡觉"),
+            ("小花", "聪明机灵，会各种小把戏"),
+            ("咪咪", "粘人撒娇，喜欢被摸摸"),
+            ("喵喵", "独立自主，有自己的想法"),
+            ("球球", "贪吃小猫，对食物很敏感"),
+            ("毛毛", "胆小害羞，容易受到惊吓"),
+            ("糖糖", "淘气捣蛋，喜欢恶作剧")
+        ]
+        
+        for i, (cat_name, personality) in enumerate(cat_data):
+            cat_id = f"cat_{i+1:02d}"
+            
+            # 从cat_manager获取位置信息
+            if i < len(cat_manager.cats):
+                cat_sprite = cat_manager.cats[i]
+                pos = cat_sprite.rect.center
+            else:
+                pos = (500, 500)  # 默认位置
+            
+            # 创建CatNPCData实例
+            cat_npc_data = CatNPCData(cat_name, pos, personality, cat_id)
+            self.add_npc(cat_id, cat_npc_data)
+            print(f"[NPCManager] 注册猫咪NPC: {cat_name} ({cat_id})")
     
     def refresh_all_quest_pools(self, player=None):
         """刷新所有NPC的任务池"""

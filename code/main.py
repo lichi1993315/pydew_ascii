@@ -101,7 +101,11 @@ class Game:
 			if event.type == pygame.QUIT:
 				return False
 			
-			# 优先处理聊天面板输入
+			# 优先处理猫咪详情UI输入
+			if self.level and self.level.cat_info_ui.handle_input(event):
+				continue  # 如果猫咪详情UI处理了输入，跳过其他处理
+			
+			# 处理聊天面板输入
 			if self.level and self.level.chat_panel.handle_input(event):
 				continue  # 如果聊天系统处理了输入，跳过其他处理
 			
@@ -118,11 +122,17 @@ class Game:
 					if self.level.handle_dialogue_input(event.key):
 						continue  # 如果对话系统处理了输入，跳过其他处理
 					
-					# 处理NPC交互 (用T键与NPC对话)
+					# 处理T键交互
 					if event.key == pygame.K_t:
-						nearby_npc = self.level.check_npc_interaction()
-						if nearby_npc:
-							self.level.start_npc_dialogue(nearby_npc)
+						# 优先检查猫咪交互
+						nearby_cat = self.level.check_cat_interaction()
+						if nearby_cat:
+							self.level.cat_info_ui.show_cat_info(nearby_cat, self.level.chat_ai)
+						else:
+							# 检查其他NPC交互
+							nearby_npc = self.level.check_npc_interaction()
+							if nearby_npc:
+								self.level.start_npc_dialogue(nearby_npc)
 		
 		return True
 	

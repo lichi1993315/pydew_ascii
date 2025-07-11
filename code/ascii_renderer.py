@@ -13,6 +13,7 @@ class ASCIIRenderer:
 		# 使用字体管理器获取字体
 		font_manager = FontManager.get_instance()
 		self.font = font_manager.load_chinese_font(16, "ascii_renderer")
+		self.emoji_font = font_manager.load_emoji_font(16, "ascii_emoji_renderer")
 		self.tile_size = 16  # ASCII字符大小
 		
 		# ASCII字符映射表 - 参考矮人要塞风格
@@ -99,22 +100,70 @@ class ASCIIRenderer:
 			'rock': (105, 105, 105),     # 灰色
 		}
 	
+	def _is_emoji(self, char):
+		"""检查字符是否为emoji"""
+		# 简单的emoji检测 - 检查Unicode范围
+		if len(char) == 0:
+			return False
+		
+		code_point = ord(char[0]) if len(char) == 1 else ord(char)
+		
+		# 常见emoji Unicode范围
+		emoji_ranges = [
+			(0x1F600, 0x1F64F),  # Emoticons
+			(0x1F300, 0x1F5FF),  # Misc Symbols and Pictographs
+			(0x1F680, 0x1F6FF),  # Transport and Map
+			(0x1F1E0, 0x1F1FF),  # Regional indicator symbols
+			(0x2600, 0x26FF),    # Misc symbols
+			(0x2700, 0x27BF),    # Dingbats
+			(0xFE00, 0xFE0F),    # Variation selectors
+			(0x1F900, 0x1F9FF),  # Supplemental Symbols and Pictographs
+		]
+		
+		return any(start <= code_point <= end for start, end in emoji_ranges)
+	
 	def render_ascii(self, surface, char, color, pos, size=None):
 		"""
 		渲染ASCII字符到指定位置
+		智能选择emoji字体或普通字体
 		"""
 		if size is None:
 			size = self.tile_size
 		
-		# 创建文本表面
-		text_surface = self.font.render(char, True, color)
+		# 选择合适的字体
+		if self._is_emoji(char):
+			selected_font = self.emoji_font
+		else:
+			selected_font = self.font
 		
-		# 计算居中位置
-		text_rect = text_surface.get_rect()
-		text_rect.center = (pos[0] + size // 2, pos[1] + size // 2)
-		
-		# 绘制到目标表面
-		surface.blit(text_surface, text_rect)
+		try:
+			# 创建文本表面
+			text_surface = selected_font.render(char, True, color)
+			
+			# 检查渲染结果
+			if text_surface.get_width() == 0:
+				# 如果emoji字体渲染失败，回退到普通字体
+				if self._is_emoji(char):
+					text_surface = self.font.render(char, True, color)
+			
+			# 计算居中位置
+			text_rect = text_surface.get_rect()
+			text_rect.center = (pos[0] + size // 2, pos[1] + size // 2)
+			
+			# 绘制到目标表面
+			surface.blit(text_surface, text_rect)
+			
+		except Exception as e:
+			print(f"字符渲染失败 '{char}': {e}")
+			# 尝试用备用字符渲染
+			try:
+				fallback_char = "?" if not self._is_emoji(char) else "🐱"
+				text_surface = self.font.render(fallback_char, True, color)
+				text_rect = text_surface.get_rect()
+				text_rect.center = (pos[0] + size // 2, pos[1] + size // 2)
+				surface.blit(text_surface, text_rect)
+			except:
+				pass  # 完全失败时什么都不做
 	
 	def get_ascii_char(self, tile_type, variant=0):
 		"""
