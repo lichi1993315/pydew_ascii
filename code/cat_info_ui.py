@@ -1,8 +1,134 @@
 import pygame
 import math
+import unicodedata
 from typing import Optional, Dict, List
 from datetime import datetime
 from font_manager import FontManager
+
+class TextRenderer:
+    """统一的文本渲染引擎，处理文本换行、容器大小和渲染"""
+    
+    def __init__(self):
+        self.debug_mode = False
+    
+    def calculate_char_width(self, char: str, font: pygame.font.Font) -> int:
+        """计算单个字符的宽度，针对中文字符和emoji优化"""
+        try:
+            # 检查是否是emoji字符
+            if ord(char) >= 0x1F000:  # 基本emoji范围
+                return font.size(char)[0] if font.size(char)[0] > 0 else 20  # emoji默认宽度
+            elif unicodedata.east_asian_width(char) in ('F', 'W'):
+                # 全角字符（中文、日文等）
+                return font.size(char)[0]
+            else:
+                # 半角字符
+                return font.size(char)[0]
+        except:
+            # 回退：使用字体计算
+            return font.size(char)[0] if font.size(char)[0] > 0 else 10
+    
+    def wrap_text_advanced(self, text: str, max_width: int, font: pygame.font.Font) -> List[str]:
+        """高级文本换行算法，支持中文和emoji"""
+        if not text:
+            return [""]
+        
+        lines = []
+        current_line = ""
+        current_width = 0
+        
+        i = 0
+        while i < len(text):
+            char = text[i]
+            char_width = self.calculate_char_width(char, font)
+            
+            # 检查是否需要换行
+            if current_width + char_width > max_width and current_line:
+                # 当前行已满，开始新行
+                lines.append(current_line.strip())
+                current_line = char
+                current_width = char_width
+            else:
+                # 添加字符到当前行
+                current_line += char
+                current_width += char_width
+            
+            i += 1
+        
+        # 添加最后一行
+        if current_line:
+            lines.append(current_line.strip())
+        
+        return lines if lines else [""]
+    
+    def calculate_text_size(self, text: str, font: pygame.font.Font, max_width: int) -> tuple:
+        """计算文本在给定宽度限制下的实际尺寸 (width, height)"""
+        lines = self.wrap_text_advanced(text, max_width, font)
+        if not lines:
+            return (0, 0)
+        
+        # 计算最大行宽
+        max_line_width = 0
+        for line in lines:
+            line_width = font.size(line)[0]
+            max_line_width = max(max_line_width, line_width)
+        
+        # 计算总高度
+        line_height = font.get_height()
+        total_height = len(lines) * line_height
+        
+        return (min(max_line_width, max_width), total_height)
+    
+    def render_text_with_background(self, surface: pygame.Surface, text: str, 
+                                  font: pygame.font.Font, text_color: tuple, 
+                                  bg_color: tuple, pos: tuple, max_width: int,
+                                  padding: int = 5, line_spacing: int = 2) -> tuple:
+        """渲染带背景的文本，返回实际占用的矩形区域 (x, y, width, height)"""
+        lines = self.wrap_text_advanced(text, max_width - 2 * padding, font)
+        if not lines:
+            return (*pos, 0, 0)
+        
+        # 计算背景尺寸
+        text_width, text_height = self.calculate_text_size(text, font, max_width - 2 * padding)
+        bg_width = text_width + 2 * padding
+        bg_height = text_height + 2 * padding
+        
+        # 绘制背景
+        bg_rect = pygame.Rect(pos[0], pos[1], bg_width, bg_height)
+        pygame.draw.rect(surface, bg_color, bg_rect)
+        pygame.draw.rect(surface, (200, 200, 200), bg_rect, 1)  # 边框
+        
+        # 绘制文本
+        line_height = font.get_height()
+        text_x = pos[0] + padding
+        text_y = pos[1] + padding
+        
+        for i, line in enumerate(lines):
+            if line.strip():  # 只渲染非空行
+                line_surface = font.render(line, True, text_color)
+                surface.blit(line_surface, (text_x, text_y + i * (line_height + line_spacing)))
+        
+        # 调试模式：绘制边界
+        if self.debug_mode:
+            pygame.draw.rect(surface, (255, 0, 0), bg_rect, 2)
+        
+        return (pos[0], pos[1], bg_width, bg_height)
+    
+    def render_multiline_text(self, surface: pygame.Surface, text: str,
+                            font: pygame.font.Font, color: tuple, pos: tuple,
+                            max_width: int, line_spacing: int = 2) -> int:
+        """渲染多行文本，返回实际高度"""
+        lines = self.wrap_text_advanced(text, max_width, font)
+        if not lines:
+            return 0
+        
+        line_height = font.get_height()
+        
+        for i, line in enumerate(lines):
+            if line.strip():  # 只渲染非空行
+                line_surface = font.render(line, True, color)
+                surface.blit(line_surface, (pos[0], pos[1] + i * (line_height + line_spacing)))
+        
+        return len(lines) * (line_height + line_spacing)
 
 class CatInfoUI:
     """猫咪详细信息UI界面"""
@@ -20,6 +146,9 @@ class CatInfoUI:
         self.small_font = self.font_manager.load_chinese_font(14, "cat_info_small")
         self.large_font = self.font_manager.load_chinese_font(18, "cat_info_large")
         self.emoji_font = self.font_manager.load_emoji_font(32, "cat_info_emoji")
+        
+        # 文本渲染引擎
+        self.text_renderer = TextRenderer()
         
         # 颜色配置
         self.colors = {
@@ -242,9 +371,15 @@ class CatInfoUI:
         # pygame.draw.rect(surface, (255, 0, 0, 50), 
         #                 (desc_x, desc_y, desc_max_width, 100), 1)
         
-        desc_height = self._render_multiline_text_improved(surface, personality_desc, 
-                                   (desc_x, desc_y), desc_max_width, 
-                                   self.normal_font, self.colors['text'])
+        desc_height = self.text_renderer.render_multiline_text(
+            surface=surface,
+            text=personality_desc,
+            font=self.normal_font,
+            color=self.colors['text'],
+            pos=(desc_x, desc_y),
+            max_width=desc_max_width,
+            line_spacing=2
+        )
         
         # 近期对话标题
         recent_y = desc_y + desc_height + 20
@@ -313,6 +448,9 @@ class CatInfoUI:
             return
         
         current_y = start_y
+        panel_margin = self.left_panel_x - self.panel_x + 20
+        max_content_width = self.left_panel_width - 60  # 留出足够边距
+        
         for entry in recent_history[-2:]:  # 只显示最近2条
             # 时间戳
             timestamp = entry.get('timestamp', '')
@@ -328,43 +466,72 @@ class CatInfoUI:
             # 发言者和时间
             speaker_text = f"{entry['speaker']} 今天 ({time_str}) 22:08"
             speaker_surface = self.small_font.render(speaker_text, True, self.colors['subtitle'])
-            surface.blit(speaker_surface, (self.left_panel_x - self.panel_x + 40, current_y))
+            surface.blit(speaker_surface, (panel_margin + 20, current_y))
             
-            # 对话内容（蓝色背景框）- 支持换行
+            # 对话内容（使用新的文本渲染引擎）
             message = entry['message']
-            max_msg_width = self.left_panel_width - 80
             
-            # 计算需要的行数
-            wrapped_lines = self._wrap_text_to_lines(message, max_msg_width, self.small_font)
-            line_count = len(wrapped_lines)
+            # 使用TextRenderer渲染带背景的文本
+            bg_rect = self.text_renderer.render_text_with_background(
+                surface=surface,
+                text=message,
+                font=self.small_font,
+                text_color=(255, 255, 255),
+                bg_color=self.colors['tab_active'],
+                pos=(panel_margin + 20, current_y + 20),
+                max_width=max_content_width,
+                padding=8,
+                line_spacing=2
+            )
             
-            # 绘制蓝色背景框（根据行数调整高度）
-            msg_height = max(25, line_count * 18 + 10)
-            msg_rect = pygame.Rect(self.left_panel_x - self.panel_x + 40, current_y + 20, 
-                                  max_msg_width, msg_height)
-            pygame.draw.rect(surface, self.colors['tab_active'], msg_rect)
-            pygame.draw.rect(surface, self.colors['border'], msg_rect, 1)
-            
-            # 对话文本（多行）
-            for i, line in enumerate(wrapped_lines):
-                line_surface = self.small_font.render(line, True, (255, 255, 255))
-                surface.blit(line_surface, (msg_rect.x + 8, msg_rect.y + 5 + i * 18))
-            
-            current_y += msg_height + 10
+            # 更新Y位置
+            current_y += bg_rect[3] + 30  # 背景高度 + 间距
     
     def _render_dialogue_content(self, surface, content_rect, tab_type):
         """渲染对话内容区域，返回内容总高度"""
-        if not hasattr(self, 'chat_ai') or not self.chat_ai:
-            return 0
+        # 获取对话历史 - 包括与玩家的对话和猫猫之间的对话
+        all_dialogues = []
         
-        # 获取对话历史
-        cat_id = self.current_cat.npc_id
+        # 1. 获取与玩家的对话历史
+        if hasattr(self, 'chat_ai') and self.chat_ai:
+            cat_id = self.current_cat.npc_id
+            if tab_type == "recent":
+                player_history = self.chat_ai._get_recent_conversation_context(cat_id, 3)
+            else:
+                player_history = self.chat_ai._get_recent_conversation_context(cat_id, 10)
+            
+            # 转换为统一格式
+            for entry in player_history:
+                all_dialogues.append({
+                    'type': 'player_chat',
+                    'timestamp': entry.get('timestamp', ''),
+                    'speaker': entry['speaker'],
+                    'message': entry['message']
+                })
+        
+        # 2. 获取猫猫之间的对话历史
+        if hasattr(self.current_cat, 'get_cat_conversation_history'):
+            cat_conversations = self.current_cat.get_cat_conversation_history()
+            
+            # 转换为统一格式
+            for conv in cat_conversations:
+                all_dialogues.append({
+                    'type': 'cat_conversation',
+                    'timestamp': conv.get('timestamp', ''),
+                    'narrator': conv.get('narrator', ''),
+                    'dialogue': conv.get('dialogue', [])
+                })
+        
+        # 按时间排序
+        all_dialogues.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        # 限制显示数量
         if tab_type == "recent":
-            history = self.chat_ai._get_recent_conversation_context(cat_id, 5)
+            all_dialogues = all_dialogues[:5]
         else:
-            history = self.chat_ai._get_recent_conversation_context(cat_id, 20)
+            all_dialogues = all_dialogues[:15]
         
-        if not history:
+        if not all_dialogues:
             no_dialogue_text = "暂无对话记录"
             text_surface = self.normal_font.render(no_dialogue_text, True, self.colors['subtitle'])
             text_x = content_rect.x + (content_rect.width - text_surface.get_width()) // 2
@@ -381,64 +548,16 @@ class CatInfoUI:
         margin_x = content_rect.x + 10
         total_height = 10  # 起始边距
         
-        for entry in history:
-            entry_start_y = current_y
-            
-            # 发言者头像和名字
-            if entry['speaker'] == "玩家":
-                speaker_color = (100, 149, 237)
-                avatar_char = "@"
+        for dialogue in all_dialogues:
+            if dialogue['type'] == 'player_chat':
+                # 渲染与玩家的对话
+                entry_height = self._render_player_chat_entry(surface, dialogue, current_y, margin_x, content_rect)
+            elif dialogue['type'] == 'cat_conversation':
+                # 渲染猫猫之间的对话
+                entry_height = self._render_cat_conversation_entry(surface, dialogue, current_y, margin_x, content_rect)
             else:
-                speaker_color = self.current_cat.char_color
-                avatar_char = self.current_cat.ascii_char
+                entry_height = 0
             
-            # 只在可见区域内渲染
-            if current_y + 60 >= content_rect.top and current_y <= content_rect.bottom:
-                # 绘制头像
-                pygame.draw.circle(surface, speaker_color, (margin_x + 15, current_y + 15), 12)
-                try:
-                    char_surface = self.emoji_font.render(avatar_char, True, (255, 255, 255))
-                    if char_surface.get_width() == 0:
-                        char_surface = self.small_font.render(avatar_char, True, (255, 255, 255))
-                except:
-                    char_surface = self.small_font.render("@", True, (255, 255, 255))
-                
-                char_rect = char_surface.get_rect(center=(margin_x + 15, current_y + 15))
-                surface.blit(char_surface, char_rect)
-                
-                # 发言者名字
-                speaker_surface = self.normal_font.render(entry['speaker'], True, self.colors['text'])
-                surface.blit(speaker_surface, (margin_x + 35, current_y + 5))
-                
-                # 时间戳
-                timestamp = entry.get('timestamp', '')
-                if timestamp:
-                    try:
-                        dt = datetime.fromisoformat(timestamp)
-                        time_str = dt.strftime("%H:%M")
-                    except:
-                        time_str = ""
-                else:
-                    time_str = ""
-                
-                if time_str:
-                    time_surface = self.small_font.render(time_str, True, self.colors['subtitle'])
-                    surface.blit(time_surface, (content_rect.right - 50, current_y + 8))
-                
-                # 对话内容
-                message = entry['message']
-                msg_rect = pygame.Rect(margin_x + 35, current_y + 25, 
-                                      content_rect.width - 80, 0)
-                
-                # 计算消息高度并渲染
-                msg_height = self._render_message_text(surface, message, msg_rect, current_y)
-            else:
-                # 不在可见区域，只计算高度
-                message = entry['message']
-                wrapped_lines = self._wrap_text_to_lines(message, content_rect.width - 80, self.normal_font)
-                msg_height = len(wrapped_lines) * 20
-            
-            entry_height = max(60, msg_height + 20)
             current_y += entry_height
             total_height += entry_height
         
@@ -446,6 +565,225 @@ class CatInfoUI:
         surface.set_clip(original_clip)
         
         return total_height
+    
+    def _render_player_chat_entry(self, surface, entry, current_y, margin_x, content_rect):
+        """渲染与玩家的对话条目"""
+        from datetime import datetime
+        
+        # 发言者头像和名字
+        if entry['speaker'] == "玩家":
+            speaker_color = (100, 149, 237)
+            avatar_char = "@"
+        else:
+            speaker_color = self.current_cat.char_color
+            avatar_char = self.current_cat.ascii_char
+        
+        # 只在可见区域内渲染
+        if current_y + 60 >= content_rect.top and current_y <= content_rect.bottom:
+            # 绘制头像
+            pygame.draw.circle(surface, speaker_color, (margin_x + 15, current_y + 15), 12)
+            try:
+                char_surface = self.emoji_font.render(avatar_char, True, (255, 255, 255))
+                if char_surface.get_width() == 0:
+                    char_surface = self.small_font.render(avatar_char, True, (255, 255, 255))
+            except:
+                char_surface = self.small_font.render("@", True, (255, 255, 255))
+            
+            char_rect = char_surface.get_rect(center=(margin_x + 15, current_y + 15))
+            surface.blit(char_surface, char_rect)
+            
+            # 发言者名字
+            speaker_surface = self.normal_font.render(entry['speaker'], True, self.colors['text'])
+            surface.blit(speaker_surface, (margin_x + 35, current_y + 5))
+            
+            # 时间戳
+            timestamp = entry.get('timestamp', '')
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M")
+                except:
+                    time_str = ""
+            else:
+                time_str = ""
+            
+            if time_str:
+                time_surface = self.small_font.render(time_str, True, self.colors['subtitle'])
+                surface.blit(time_surface, (content_rect.right - 50, current_y + 8))
+            
+            # 对话内容
+            message = entry['message']
+            msg_rect = pygame.Rect(margin_x + 35, current_y + 25, 
+                                  content_rect.width - 80, 0)
+            
+            # 计算消息高度并渲染
+            msg_height = self.text_renderer.render_multiline_text(
+                surface=surface,
+                text=message,
+                font=self.normal_font,
+                color=self.colors['text'],
+                pos=(msg_rect.x, msg_rect.y),
+                max_width=msg_rect.width,
+                line_spacing=2
+            )
+        else:
+            # 不在可见区域，只计算高度
+            message = entry['message']
+            _, msg_height = self.text_renderer.calculate_text_size(message, self.normal_font, content_rect.width - 80)
+        
+        return max(60, msg_height + 20)
+    
+    def _render_cat_conversation_entry(self, surface, conversation, current_y, margin_x, content_rect):
+        """渲染猫猫之间对话的条目"""
+        from datetime import datetime
+        
+        total_height = 0
+        
+        # 只在可见区域内渲染
+        if current_y + 100 >= content_rect.top and current_y <= content_rect.bottom:
+            # 渲染时间戳
+            timestamp = conversation.get('timestamp', '')
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%m-%d %H:%M")
+                except:
+                    time_str = ""
+            else:
+                time_str = ""
+            
+            if time_str:
+                time_surface = self.small_font.render(time_str, True, self.colors['subtitle'])
+                surface.blit(time_surface, (content_rect.right - 80, current_y + 5))
+            
+            # 渲染旁白（如果有）
+            narrator = conversation.get('narrator', '')
+            narrator_height = 0
+            if narrator:
+                narrator_text = f"📖 {narrator}"
+                narrator_max_width = content_rect.width - 60  # 留出边距
+                
+                # 只渲染文本，不要背景
+                narrator_height = self.text_renderer.render_multiline_text(
+                    surface=surface,
+                    text=narrator_text,
+                    font=self.small_font,
+                    color=self.colors['subtitle'],
+                    pos=(margin_x, current_y + 25),
+                    max_width=narrator_max_width,
+                    line_spacing=2
+                )
+                
+            # 渲染对话内容
+            # 确保对话在旁白之后正确定位
+            dialogue_start_y = current_y + 25  # 时间戳行下方
+            if narrator_height > 0:
+                dialogue_start_y += narrator_height + 15  # 旁白高度 + 额外间距
+            
+            dialogue_y = dialogue_start_y
+            
+            # 重新计算total_height
+            total_height = dialogue_start_y - current_y
+            for i, dialogue_entry in enumerate(conversation.get('dialogue', [])):
+                speaker = dialogue_entry.get('speaker', '')
+                text = dialogue_entry.get('text', '')
+                
+                # 确定说话者是否是当前猫咪
+                is_current_cat = (speaker == self.current_cat.cat_name)
+                
+                if is_current_cat:
+                    # 当前猫咪
+                    speaker_color = self.current_cat.char_color
+                    avatar_char = self.current_cat.ascii_char
+                    text_x = margin_x + 40
+                    avatar_x = margin_x + 20
+                else:
+                    # 其他猫咪 - 需要根据名字找到对应的猫咪
+                    other_cat = self._find_cat_by_name(speaker)
+                    if other_cat:
+                        speaker_color = other_cat.char_color
+                        avatar_char = other_cat.ascii_char
+                    else:
+                        speaker_color = (200, 150, 100)  # 默认颜色
+                        avatar_char = "🐱"  # 默认头像
+                    text_x = margin_x + 40
+                    avatar_x = margin_x + 20
+                
+                # 绘制小头像
+                pygame.draw.circle(surface, speaker_color, (avatar_x, dialogue_y + 10), 8)
+                try:
+                    # 优先使用emoji字体
+                    char_surface = self.emoji_font.render(avatar_char, True, (255, 255, 255))
+                    if char_surface.get_width() == 0:
+                        # emoji字体失败时使用小字体
+                        char_surface = self.small_font.render(avatar_char, True, (255, 255, 255))
+                        if char_surface.get_width() == 0:
+                            # 最后的回退选项
+                            char_surface = self.small_font.render("🐱", True, (255, 255, 255))
+                except:
+                    char_surface = self.small_font.render("🐱", True, (255, 255, 255))
+                
+                char_rect = char_surface.get_rect(center=(avatar_x, dialogue_y + 10))
+                surface.blit(char_surface, char_rect)
+                
+                # 说话者名字
+                speaker_surface = self.small_font.render(f"{speaker}:", True, self.colors['text'])
+                surface.blit(speaker_surface, (text_x, dialogue_y))
+                
+                # 对话文本 - 使用TextRenderer支持动态换行
+                text_max_width = content_rect.width - 100  # 给头像和边距留空间
+                
+                # 使用TextRenderer渲染多行文本
+                text_height = self.text_renderer.render_multiline_text(
+                    surface=surface,
+                    text=text,
+                    font=self.small_font,
+                    color=self.colors['text'],
+                    pos=(text_x, dialogue_y + 18),
+                    max_width=text_max_width,
+                    line_spacing=2
+                )
+                
+                dialogue_y += max(25, text_height + 18 + 5)  # 18是名字的高度
+                total_height += max(25, text_height + 18 + 5)
+        else:
+            # 不在可见区域，估算高度（使用TextRenderer）
+            narrator = conversation.get('narrator', '')
+            dialogue_entries = conversation.get('dialogue', [])
+            
+            # 估算旁白高度
+            narrator_height = 0
+            if narrator:
+                narrator_text = f"📖 {narrator}"
+                narrator_max_width = content_rect.width - 60
+                _, narrator_height = self.text_renderer.calculate_text_size(narrator_text, self.small_font, narrator_max_width)
+            
+            # 计算对话起始位置（与可见区域逻辑一致）
+            dialogue_start_offset = 25  # 时间戳行下方
+            if narrator_height > 0:
+                dialogue_start_offset += narrator_height + 15  # 旁白高度 + 额外间距
+            
+            # 估算对话高度
+            dialogue_height = 0
+            for dialogue_entry in dialogue_entries:
+                text = dialogue_entry.get('text', '')
+                text_max_width = content_rect.width - 100
+                _, text_height = self.text_renderer.calculate_text_size(text, self.small_font, text_max_width)
+                entry_height = max(25, text_height + 18 + 5)
+                dialogue_height += entry_height
+            
+            total_height = dialogue_start_offset + dialogue_height
+        
+        return total_height + 20  # 添加底部间距
+    
+    def _find_cat_by_name(self, cat_name):
+        """根据猫咪名字查找猫咪对象"""
+        # 通过current_cat的cat_manager找到所有猫咪
+        if hasattr(self.current_cat, 'cat_manager') and self.current_cat.cat_manager:
+            for cat in self.current_cat.cat_manager.cats:
+                if cat.cat_name == cat_name:
+                    return cat
+        return None
     
     def _render_message_text(self, surface, message, rect, y_offset):
         """渲染消息文本，支持换行"""

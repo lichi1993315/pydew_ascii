@@ -87,8 +87,35 @@ The game uses a tile-based coordinate system (64px tiles) for world positioning 
 
 Font management is handled through a singleton FontManager class that supports Chinese character rendering with fallback mechanisms.
 
+## 重要开发规范
+
+### 文本渲染规范
+
+**动态换行要求**: 
+- 所有在UI中显示的文本（对话、旁白、描述等）都必须实现动态换行
+- 不能让文本超出容器边界导致看不见
+- 必须使用统一的`TextRenderer`类处理所有文本渲染
+- 禁止直接使用pygame的`font.render()`进行多行文本渲染
+- 在计算UI元素高度时要考虑换行后的实际高度
+
+**TextRenderer使用规范**:
+- 使用`text_renderer.render_multiline_text()`渲染普通多行文本
+- 使用`text_renderer.render_text_with_background()`渲染带背景的文本
+- 使用`text_renderer.calculate_text_size()`计算文本尺寸
+- 使用`text_renderer.wrap_text_advanced()`进行高级文本换行
+
+**emoji和中文字符处理**:
+- TextRenderer已优化中文字符和emoji的宽度计算
+- 支持全角/半角字符的正确换行
+- 自动处理emoji字符的特殊宽度
+- 优先使用emoji_font渲染emoji字符
+- 提供字体回退机制：emoji_font → normal_font → fallback字符
+
 ## SuperCompact 记录
 
-最后执行时间: 2025-07-12
+最后执行时间: 2025-07-13
 执行内容: 会话压缩 + 自动提交 + 项目文件更新
 Git提交: 待创建
+
+上次执行: 2025-07-12
+上次Git提交: a9456f1

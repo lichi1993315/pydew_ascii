@@ -3,7 +3,8 @@
     "allow": [
       "Bash(grep:*)",
       "Bash(pip install:*)",
-      "Bash(python3 -m pip install pygame)"
+      "Bash(python3 -m pip install pygame)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

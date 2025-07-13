@@ -24,11 +24,22 @@ class CatNPC(ASCIINPC):
         self.max_idle_time = random.uniform(3, 8)  # 3-8秒闲置时间
         
         # 移动边界（游戏世界边界）
-        self.world_bounds = pygame.Rect(0, 0, 1600, 1600)  # 假设游戏世界大小
+        self.world_bounds = pygame.Rect(0, 0, 1600, 1600)  # 假设游戏世界边界
         
         # 移动状态
         self.movement_state = "idle"  # idle, moving, sitting
         self.state_timer = 0
+        
+        # 猫猫社交相关属性
+        self.social_interaction_distance = 80  # 社交互动距离
+        self.nearby_cats = []  # 附近的猫咪列表
+        self.current_conversation_partner = None  # 当前对话伙伴
+        self.conversation_cooldown = 0  # 对话冷却时间
+        self.conversation_cooldown_max = 30  # 30秒冷却
+        self.last_conversation_time = 0
+        
+        # 猫猫对话历史（用于存储猫猫之间的对话）
+        self.cat_conversations = {}  # {other_cat_id: [conversation_entries...]}
         
         # ASCII字符设定
         self.ascii_char = random.choice(['🐈', '🐱', '😺', '😸', '😻', '😽'])  # 随机猫咪字符
@@ -99,6 +110,10 @@ class CatNPC(ASCIINPC):
         # 更新状态计时器
         self.state_timer -= dt
         
+        # 更新对话冷却时间
+        if self.conversation_cooldown > 0:
+            self.conversation_cooldown -= dt
+        
         # 状态切换
         if self.state_timer <= 0:
             self._choose_movement_state()
@@ -119,6 +134,9 @@ class CatNPC(ASCIINPC):
                 if self.world_bounds.contains(pygame.Rect(new_pos.x-16, new_pos.y-16, 32, 32)):
                     self.rect.center = new_pos
         # sitting状态不移动
+        
+        # 更新社交互动
+        self._update_social_interactions(dt)
         
         # 更新ASCII字符显示
         self._update_ascii_display()
@@ -190,6 +208,230 @@ class CatNPC(ASCIINPC):
             "ascii_char": self.ascii_char,
             "color": self.char_color
         }
+    
+    def _update_social_interactions(self, dt):
+        """更新社交互动逻辑"""
+        # 如果在对话冷却期，跳过社交检测
+        if self.conversation_cooldown > 0:
+            return
+        
+        # 检测附近的猫咪
+        nearby_cats = self._find_nearby_cats()
+        self.nearby_cats = nearby_cats
+        
+        # 如果有附近的猫咪且不在对话中，尝试开始对话
+        if nearby_cats and not self.current_conversation_partner:
+            # 随机选择一只猫开始对话（低概率）
+            if random.random() < 0.002:  # 0.2%的概率每帧，约每10秒一次机会
+                selected_cat = random.choice(nearby_cats)
+                self._initiate_conversation_with_cat(selected_cat)
+    
+    def _find_nearby_cats(self):
+        """查找附近的猫咪"""
+        nearby_cats = []
+        current_pos = pygame.math.Vector2(self.rect.center)
+        
+        # 通过CatManager找到所有其他猫咪
+        if hasattr(self, 'cat_manager') and self.cat_manager:
+            for cat in self.cat_manager.cats:
+                if cat != self:  # 不包括自己
+                    cat_pos = pygame.math.Vector2(cat.rect.center)
+                    distance = current_pos.distance_to(cat_pos)
+                    
+                    if distance <= self.social_interaction_distance:
+                        nearby_cats.append(cat)
+        
+        return nearby_cats
+    
+    def _initiate_conversation_with_cat(self, other_cat):
+        """与另一只猫开始对话"""
+        import time
+        import threading
+        import asyncio
+        
+        # 防止重复对话
+        if (self.current_conversation_partner or 
+            other_cat.current_conversation_partner or
+            other_cat.conversation_cooldown > 0):
+            return
+        
+        print(f"[CatNPC] {self.cat_name} 开始与 {other_cat.cat_name} 对话")
+        
+        # 设置对话状态
+        self.current_conversation_partner = other_cat
+        other_cat.current_conversation_partner = self
+        
+        # 设置冷却期
+        self.conversation_cooldown = self.conversation_cooldown_max
+        other_cat.conversation_cooldown = other_cat.conversation_cooldown_max
+        
+        # 异步生成对话
+        def generate_cat_conversation():
+            try:
+                # 创建新的事件循环
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # 生成猫猫之间的对话
+                conversation = loop.run_until_complete(
+                    self._generate_cat_to_cat_conversation(other_cat)
+                )
+                
+                # 保存对话到双方的历史记录
+                self._save_cat_conversation(other_cat, conversation)
+                other_cat._save_cat_conversation(self, conversation)
+                
+                loop.close()
+                
+            except Exception as e:
+                print(f"[CatNPC] 生成猫猫对话失败: {e}")
+            finally:
+                # 重置对话状态
+                self.current_conversation_partner = None
+                other_cat.current_conversation_partner = None
+        
+        # 启动对话生成线程
+        conversation_thread = threading.Thread(target=generate_cat_conversation)
+        conversation_thread.daemon = True
+        conversation_thread.start()
+    
+    async def _generate_cat_to_cat_conversation(self, other_cat):
+        """生成猫猫之间的AI对话"""
+        from chat_ai import get_chat_ai
+        
+        chat_ai = get_chat_ai()
+        
+        # 构建对话提示
+        conversation_prompt = f"""
+你需要为两只猫咪生成一段自然的对话场景。
+
+猫咪A: {self.cat_name}
+性格: {self.cat_personality}
+
+猫咪B: {other_cat.cat_name}  
+性格: {other_cat.cat_personality}
+
+请生成一段包含以下内容的对话：
+1. 一段旁白描述两只猫相遇的情景
+2. 3-4轮简短的对话交流
+3. 对话要符合各自的性格特点
+4. 使用可爱的猫语风格（适当使用"喵"）
+
+格式要求：
+旁白：[旁白内容]
+{self.cat_name}：[对话内容]
+{other_cat.cat_name}：[对话内容]
+{self.cat_name}：[对话内容]
+{other_cat.cat_name}：[对话内容]
+
+请确保对话简短自然，每句话不超过30字。
+"""
+        
+        try:
+            # 使用临时的NPC ID进行AI对话生成
+            temp_npc_id = f"cat_conversation_{self.npc_id}_{other_cat.npc_id}"
+            response = await chat_ai.generate_npc_response(temp_npc_id, conversation_prompt)
+            
+            # 解析对话内容
+            conversation_data = self._parse_conversation_response(response)
+            return conversation_data
+            
+        except Exception as e:
+            print(f"[CatNPC] AI对话生成失败: {e}")
+            # 回退到预设对话
+            return self._generate_fallback_conversation(other_cat)
+    
+    def _parse_conversation_response(self, response):
+        """解析AI生成的对话内容"""
+        import re
+        from datetime import datetime
+        
+        lines = response.strip().split('\n')
+        conversation_data = {
+            'timestamp': datetime.now().isoformat(),
+            'narrator': '',
+            'dialogue': []
+        }
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # 匹配旁白
+            narrator_match = re.match(r'旁白[：:](.+)', line)
+            if narrator_match:
+                conversation_data['narrator'] = narrator_match.group(1).strip()
+                continue
+            
+            # 匹配对话
+            dialogue_match = re.match(r'([^：:]+)[：:](.+)', line)
+            if dialogue_match:
+                speaker = dialogue_match.group(1).strip()
+                text = dialogue_match.group(2).strip()
+                conversation_data['dialogue'].append({
+                    'speaker': speaker,
+                    'text': text
+                })
+        
+        return conversation_data
+    
+    def _generate_fallback_conversation(self, other_cat):
+        """生成回退对话"""
+        from datetime import datetime
+        
+        fallback_conversations = [
+            {
+                'narrator': f'{self.cat_name}和{other_cat.cat_name}在阳光下相遇了',
+                'dialogue': [
+                    {'speaker': self.cat_name, 'text': '喵～你好呀'},
+                    {'speaker': other_cat.cat_name, 'text': '喵喵～今天天气真好'},
+                    {'speaker': self.cat_name, 'text': '一起晒太阳吧，喵'},
+                    {'speaker': other_cat.cat_name, 'text': '好呀～喵'}
+                ]
+            },
+            {
+                'narrator': f'{self.cat_name}好奇地靠近了{other_cat.cat_name}',
+                'dialogue': [
+                    {'speaker': self.cat_name, 'text': '你在干什么呢，喵？'},
+                    {'speaker': other_cat.cat_name, 'text': '在观察蝴蝶，喵～'},
+                    {'speaker': self.cat_name, 'text': '哇，好漂亮，喵！'},
+                    {'speaker': other_cat.cat_name, 'text': '对吧～我们一起看，喵'}
+                ]
+            }
+        ]
+        
+        conversation = random.choice(fallback_conversations)
+        conversation['timestamp'] = datetime.now().isoformat()
+        return conversation
+    
+    def _save_cat_conversation(self, other_cat, conversation_data):
+        """保存猫猫对话到历史记录"""
+        other_cat_id = other_cat.npc_id
+        
+        if other_cat_id not in self.cat_conversations:
+            self.cat_conversations[other_cat_id] = []
+        
+        self.cat_conversations[other_cat_id].append(conversation_data)
+        
+        # 限制历史记录长度
+        if len(self.cat_conversations[other_cat_id]) > 10:
+            self.cat_conversations[other_cat_id] = self.cat_conversations[other_cat_id][-10:]
+        
+        print(f"[CatNPC] {self.cat_name} 保存了与 {other_cat.cat_name} 的对话")
+    
+    def get_cat_conversation_history(self, other_cat_id=None):
+        """获取猫猫对话历史"""
+        if other_cat_id:
+            return self.cat_conversations.get(other_cat_id, [])
+        else:
+            # 返回所有对话历史
+            all_conversations = []
+            for cat_id, conversations in self.cat_conversations.items():
+                all_conversations.extend(conversations)
+            # 按时间排序
+            all_conversations.sort(key=lambda x: x['timestamp'])
+            return all_conversations
 
 class CatManager:
     """猫咪管理器"""
@@ -253,6 +495,9 @@ class CatManager:
                 cat_name=cat_name,
                 cat_personality=cat_personality
             )
+            
+            # 给猫咪设置管理器引用，用于找到其他猫咪
+            cat.cat_manager = self
             
             self.cats.append(cat)
             print(f"[CatManager] 创建猫咪: {cat_name} ({cat_id}) 位置: {actual_pos}")
