@@ -2,7 +2,7 @@ import pygame
 from src.settings import *
 from .player import Player
 from src.ui.overlay import Overlay
-from src.rendering.ascii_sprites import ASCIIGeneric, ASCIIWater, ASCIIWildFlower, ASCIITree, ASCIIInteraction, ASCIIParticle, ASCIINPC
+from src.rendering.ascii_sprites import ASCIIGeneric, ASCIIWater, ASCIIWildFlower, ASCIITree, ASCIIInteraction, ASCIIParticle, ASCIINPC, ASCIIHouse
 from .map_loader import load_pygame, MapObjectLayer
 from src.core.support import *
 from src.utils.transition import Transition
@@ -173,6 +173,17 @@ class Level:
 			else:
 				# 默认草地装饰
 				ASCIIGeneric((obj.x, obj.y), 'grass', [self.all_sprites], z=LAYERS['main'])
+		
+		# 房屋
+		house_layer = MapObjectLayer(tmx_data.config, 'House')
+		for obj in house_layer:
+			house_type = obj.name.lower()
+			if house_type in ['wall', 'door', 'window']:
+				# 墙、门、窗有碰撞
+				ASCIIHouse((obj.x, obj.y), house_type, [self.all_sprites, self.collision_sprites], z=LAYERS['main'])
+			else:
+				# 地板、屋顶没有碰撞
+				ASCIIHouse((obj.x, obj.y), house_type, [self.all_sprites], z=LAYERS['main'])
 
 		# 碰撞瓦片
 		for x, y, surf in tmx_data.get_layer_by_name('Collision').tiles():
@@ -205,12 +216,41 @@ class Level:
 			if obj.name == 'Trader':  # 商人（商店交互）
 				ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
 
-		# 地面背景
-		ASCIIGeneric(
-			pos = (0,0),
-			tile_type = 'grass',
-			groups = self.all_sprites,
-			z = LAYERS['ground'])
+		# 填充所有空白瓦片为草地背景
+		# 记录已占用的位置
+		occupied_positions = set()
+		
+		# 水域
+		for x, y in tmx_data.config.get('water_tiles', []):
+			occupied_positions.add((x, y))
+		
+		# 小径
+		for x, y in tmx_data.config.get('path_tiles', []):
+			occupied_positions.add((x, y))
+		
+		# 海滩
+		for x, y in tmx_data.config.get('beach_tiles', []):
+			occupied_positions.add((x, y))
+		
+		# 可耕种瓦片
+		for x, y in tmx_data.config.get('farmable_tiles', []):
+			occupied_positions.add((x, y))
+		
+		# 房屋部件
+		for house_part in tmx_data.config.get('house_positions', []):
+			grid_x = house_part['x'] // TILE_SIZE
+			grid_y = house_part['y'] // TILE_SIZE
+			occupied_positions.add((grid_x, grid_y))
+		
+		# 填充所有空白位置为草地
+		for x in range(tmx_data.width):
+			for y in range(tmx_data.height):
+				if (x, y) not in occupied_positions:
+					ASCIIGeneric(
+						pos = (x * TILE_SIZE, y * TILE_SIZE),
+						tile_type = 'grass',
+						groups = self.all_sprites,
+						z = LAYERS['ground'])
 		
 		# 创建NPC精灵
 		self.create_npcs()
@@ -625,7 +665,7 @@ class Level:
 		# 定义状态文本和颜色
 		state_texts = {
 			"casting": ("🎣 正在出杆...", (255, 255, 100)),
-			"waiting": ("🎣 等待鱼上钩...", (100, 255, 100)),  
+			"waiting": ("🎣 等待鱼上钩", (100, 255, 100)),  
 			"fish_hooked": ("🎣 鱼上钩了！快按空格键！", (255, 100, 100))
 		}
 		
@@ -637,7 +677,7 @@ class Level:
 		# 添加额外信息
 		if state == "waiting" and hasattr(self.player, 'fishing_timer'):
 			remaining_time = max(0, self.player.fishing_timer)
-			text += f" ({remaining_time:.1f}s)"
+			text += f"." * ((20 -int(remaining_time)) % 3 + 1)
 		elif state == "fish_hooked" and hasattr(self.player, 'bait_shake_timer'):
 			shake_time = self.player.bait_shake_timer
 			text += f" (已晃动 {shake_time:.1f}s)"
@@ -661,7 +701,7 @@ class Level:
 		# 添加操作提示
 		hint_text = ""
 		if state == "waiting":
-			hint_text = "按空格键可以提前收杆"
+			hint_text = ""
 		elif state == "fish_hooked":
 			hint_text = "快按空格键收杆，否则鱼会跑掉！"
 		

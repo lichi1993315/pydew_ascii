@@ -28,7 +28,7 @@ class ASCIIRenderer:
 			# 植物
 			'tree': 'T',       # 大树
 			'sapling': 't',    # 小树
-			'bush': 'b',       # 灌木
+			'bush': '🌳',       # 灌木
 			'flower': '*',     # 花
 			'mushroom': 'm',   # 蘑菇
 			'crop': 'c',       # 农作物
@@ -55,7 +55,7 @@ class ASCIIRenderer:
 			'bed': '=',        # 床
 			'chest': 'C',      # 箱子
 			'stump': 'S',      # 树桩
-			'rock': 'r',       # 岩石
+			'rock': 'o',       # 岩石
 		}
 		
 		# 颜色映射表

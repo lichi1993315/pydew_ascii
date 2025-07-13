@@ -102,6 +102,10 @@ class MapObjectLayer:
         elif self.layer_name == 'Player':
             spawn = self.config.get('player_spawn', {'x': 640, 'y': 360})
             yield MapObject(spawn['x'], spawn['y'], 'start')
+        
+        elif self.layer_name == 'House':
+            for house_part in self.config.get('house_positions', []):
+                yield MapObject(house_part['x'], house_part['y'], house_part['type'])
 
 
 class MapObject:

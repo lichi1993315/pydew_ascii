@@ -319,4 +319,42 @@ class ASCIINPC(ASCIIGeneric):
 		"""与NPC交互"""
 		if self.npc_manager:
 			return self.npc_manager.interact_with_npc(self.npc_id, player)
-		return [] 
+		return []
+
+
+class ASCIIHouse(pygame.sprite.Sprite):
+	"""
+	ASCII版本的房屋精灵类
+	"""
+	
+	def __init__(self, pos, house_type, groups, z=LAYERS['main']):
+		super().__init__(groups)
+		
+		# 基本设置
+		self.image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+		self.rect = self.image.get_rect(topleft=pos)
+		self.z = z
+		self.house_type = house_type
+		
+		# ASCII渲染器
+		self.ascii_renderer = ASCIIRenderer()
+		
+		# 渲染房屋部件
+		self.ascii_renderer.render_house(self.image, (0, 0), house_type)
+		
+		# 根据房屋类型设置碰撞盒
+		self.setup_hitbox()
+	
+	def setup_hitbox(self):
+		"""
+		根据房屋类型设置碰撞盒
+		"""
+		if self.house_type in ['wall', 'door']:
+			# 墙和门有碰撞
+			self.hitbox = self.rect.copy()
+		elif self.house_type in ['window']:
+			# 窗户也有碰撞（不能穿越）
+			self.hitbox = self.rect.copy()
+		else:
+			# 地板、屋顶等没有碰撞
+			self.hitbox = pygame.Rect(0, 0, 0, 0) 
