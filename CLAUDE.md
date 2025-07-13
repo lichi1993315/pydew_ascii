@@ -7,15 +7,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Run the main game
 python code/main.py
+
+# Or use the Makefile
+make run
 ```
 
 The game supports both ASCII mode (Dwarf Fortress style) and traditional pixel graphics mode, selectable from the main menu.
 
+## Project Structure
+
+The project follows a modular structure:
+- `code/` - Core game code
+- `config/` - Configuration files (AI models, game settings)
+- `test/` - Test scripts and unit tests
+- `assets/` - Game resources (audio, graphics, fonts, data)
+- `docs/` - Documentation
+
 ## Testing
+
+```bash
+# Run all tests
+make test
+
+# Run specific types of tests
+make test-unit          # Unit tests
+make test-integration   # Integration tests
+make test-ai           # AI functionality tests
+
+# Run test coverage
+make test-coverage
+
+# Manual test scripts
+cd test && python test_doubao_basic.py
+cd test && python test_model_comparison.py
+```
 
 if not permitted, do not make any attempt to create test script.
 
 ## Dependencies
+
+Install dependencies using:
+```bash
+# Basic installation
+pip install -r requirements.txt
+
+# Development installation with all optional features
+make dev-install
+```
 
 Core dependencies:
 - pygame (main game engine)
@@ -23,8 +61,19 @@ Core dependencies:
 
 Optional dependencies for AI features:
 - anthropic (Claude API integration)
+- openai (Doubao/OpenAI API integration)
 - httpx (HTTP requests)
 - python-dotenv (environment variables)
+
+## Configuration
+
+Copy the environment template and configure your API keys:
+```bash
+cp .env.example .env
+# Edit .env file with your API keys
+```
+
+AI model configuration is in `config/ai_model_config.json`.
 
 ## Architecture Overview
 
@@ -114,8 +163,18 @@ Font management is handled through a singleton FontManager class that supports C
 ## SuperCompact 记录
 
 最后执行时间: 2025-07-13
-执行内容: 会话压缩 + 自动提交 + 项目文件更新
-Git提交: 待创建
+执行内容: 会话压缩 + 自动提交 + 项目文件更新 + 猫咪emoji功能实现
+Git提交: 待生成
 
-上次执行: 2025-07-12
-上次Git提交: a9456f1
+上次执行: 2025-07-13
+上次Git提交: b3c3c9e
+
+## 最新功能更新
+
+### 猫咪NPC头顶emoji系统 (2025-07-13)
+- 实现了猫咪NPC头顶显示emoji功能，表达当前行为状态
+- 包含多种行为emoji：😴💤🤔😌🥱🚶🏃👀🎯🔍🧘😊☀️🌸💭等
+- 特殊功能：猫咪对话时显示💬气泡emoji
+- 随机显示机制：1%概率每帧触发，持续2-5秒
+- 智能行为映射：根据移动状态、社交状态等自动选择对应emoji
+- 文件修改：`src/ai/cat_npc.py`，`src/rendering/ascii_renderer.py`

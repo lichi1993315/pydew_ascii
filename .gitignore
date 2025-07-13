@@ -101,4 +101,35 @@ dmypy.json
 .vscode/
 
 # PyCharm
-.idea/ 
+.idea/
+
+# 游戏特定文件
+*.log
+logs/
+saves/
+screenshots/
+*.tmp
+*.bak
+*.backup
+
+# AI模型和配置
+config/local_*.json
+config/dev_*.json
+config/prod_*.json
+
+# 模型比较报告
+model_comparison_report_*.json
+test_results_*.json
+
+# 性能分析
+*.prof
+*.pstats
+
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 

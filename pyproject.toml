@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pydew"
+version = "0.2.0"
+description = "一个支持AI对话的农场模拟游戏"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "PyDew Team", email = "dev@pydew.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Games/Entertainment :: Simulation",
+]
+keywords = ["game", "pygame", "farming", "simulation", "ascii", "ai"]
+requires-python = ">=3.8"
+dependencies = [
+    "pygame>=2.5.0",
+    "pytmx>=3.32",
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.0.0",
+    "typing-extensions>=4.7.0",
+]
+
+[project.optional-dependencies]
+ai = [
+    "anthropic>=0.30.0",
+    "openai>=1.30.0",
+    "httpx>=0.25.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+]
+performance = [
+    "psutil>=5.9.0",
+    "memory-profiler>=0.61.0",
+]
+all = [
+    "pydew[ai,dev,performance]"
+]
+
+[project.urls]
+Homepage = "https://github.com/pydew/pydew"
+Repository = "https://github.com/pydew/pydew"
+Issues = "https://github.com/pydew/pydew/issues"
+Documentation = "https://pydew.readthedocs.io/"
+
+[project.scripts]
+pydew = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.md", "*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers --disable-warnings --color=yes"
+markers = [
+    "slow: 标记为慢速测试",
+    "integration: 集成测试",
+    "unit: 单元测试",
+    "ai: 需要AI API的测试",
+    "manual: 手动测试脚本",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true 

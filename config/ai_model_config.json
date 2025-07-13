@@ -1,0 +1,50 @@
+{
+  "ai_models": {
+    "default_model": "claude",
+    "fallback_model": "mock",
+    "models": {
+      "claude": {
+        "name": "Claude Sonnet 4",
+        "description": "Anthropic Claude Sonnet 4 - 高质量对话生成",
+        "api_key_env": "CLAUDE_API_KEY",
+        "model_id": "claude-sonnet-4-20250514",
+        "max_tokens": 400,
+        "temperature": 0.7,
+        "proxy_required": true,
+        "proxy_url": "http://127.0.0.1:7890"
+      },
+      "doubao": {
+        "name": "豆包模型",
+        "description": "字节跳动豆包模型 - 中文优化对话",
+        "api_key_env": "ARK_API_KEY",
+        "model_id": "doubao-seed-1-6-250615",
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "max_tokens": 400,
+        "temperature": 0.7,
+        "proxy_required": false
+      },
+      "mock": {
+        "name": "模拟模式",
+        "description": "本地模拟回复 - 无需API密钥",
+        "enabled": true
+      }
+    }
+  },
+  "chat_settings": {
+    "conversation_history_length": 10,
+    "cache_responses": true,
+    "response_timeout": 30,
+    "retry_attempts": 3,
+    "debug_mode": false
+  },
+  "npc_model_preferences": {
+    "cat_npcs": {
+      "preferred_model": "doubao",
+      "reason": "中文对话表现更自然"
+    },
+    "human_npcs": {
+      "preferred_model": "claude",
+      "reason": "英文训练基础更强"
+    }
+  }
+}
