@@ -165,6 +165,10 @@ class Game:
 		pygame.quit()
 		sys.exit()
 
-if __name__ == '__main__':
+def main():
+	"""主函数入口"""
 	game = Game()
 	game.run()
+
+if __name__ == '__main__':
+	main()

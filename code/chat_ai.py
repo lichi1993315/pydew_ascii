@@ -10,6 +10,7 @@ import asyncio
 import httpx
 from typing import Dict, Optional, List
 from datetime import datetime
+from ai_config_manager import get_config_manager
 
 # 尝试导入相关库
 try:
@@ -25,20 +26,43 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
     print("⚠️  anthropic库未安装，将使用模拟回复模式")
 
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("⚠️  openai库未安装，无法使用Doubao模型")
+
 class ChatAI:
     """
     聊天AI系统 - 管理NPC的智能回复
+    支持多种AI模型：Claude、Doubao
     """
     
-    def __init__(self):
-        self.api_key = os.environ.get("CLAUDE_API_KEY")
-        self.client = None
+    def __init__(self, model_type: str = None):
+        # 加载配置管理器
+        self.config_manager = get_config_manager()
+        
+        # 模型配置
+        self.model_type = model_type or os.environ.get("AI_MODEL_TYPE") or self.config_manager.get_default_model()
+        
+        # API配置
+        self.claude_api_key = os.environ.get("CLAUDE_API_KEY")
+        self.doubao_api_key = os.environ.get("ARK_API_KEY")
+        
+        # 客户端初始化
+        self.claude_client = None
+        self.doubao_client = None
+        self.current_client = None
         self.use_api = False
+        
+        # 响应缓存
         self.response_cache = {}  # 缓存回复以减少API调用
         
         # 对话历史管理
         self.conversation_history = {}  # 按NPC ID存储对话历史
-        self.max_history_length = 10   # 最大保存的对话轮数
+        chat_settings = self.config_manager.get_chat_settings()
+        self.max_history_length = chat_settings.get("conversation_history_length", 10)   # 最大保存的对话轮数
         
         # NPC角色设定
         self.npc_personalities = {
@@ -206,35 +230,105 @@ class ChatAI:
             ]
         }
         
-        self._initialize_client()
+        self._initialize_clients()
+        self._set_active_model(self.model_type)
     
-    def _initialize_client(self):
-        """初始化Claude API客户端"""
-        if not ANTHROPIC_AVAILABLE or not self.api_key:
-            print("🤖 ChatAI: 使用模拟回复模式")
-            return
+    def _initialize_clients(self):
+        """初始化所有可用的AI客户端"""
+        # 初始化Claude客户端
+        if ANTHROPIC_AVAILABLE and self.claude_api_key:
+            try:
+                # 使用与test_claude_api.py相同的proxy设置
+                custom_httpx_client = httpx.Client(
+                    transport=httpx.HTTPTransport(
+                        proxy=httpx.Proxy(
+                            url="http://127.0.0.1:7890"
+                        )
+                    ),
+                    timeout=30.0
+                )
+                
+                self.claude_client = anthropic.Anthropic(
+                    api_key=self.claude_api_key,
+                    http_client=custom_httpx_client
+                )
+                print("🤖 ChatAI: Claude API客户端初始化成功")
+                
+            except Exception as e:
+                print(f"🤖 ChatAI: Claude API客户端初始化失败: {e}")
         
-        try:
-            # 使用与test_claude_api.py相同的proxy设置
-            custom_httpx_client = httpx.Client(
-                transport=httpx.HTTPTransport(
-                    proxy=httpx.Proxy(
-                        url="http://127.0.0.1:7890"
-                    )
-                ),
-                timeout=30.0
-            )
-            
-            self.client = anthropic.Anthropic(
-                api_key=self.api_key,
-                http_client=custom_httpx_client
-            )
+        # 初始化Doubao客户端
+        if OPENAI_AVAILABLE and self.doubao_api_key:
+            try:
+                self.doubao_client = openai.OpenAI(
+                    api_key=self.doubao_api_key,
+                    base_url="https://ark.cn-beijing.volces.com/api/v3",
+                    timeout=30.0
+                )
+                print("🤖 ChatAI: Doubao API客户端初始化成功")
+                
+            except Exception as e:
+                print(f"🤖 ChatAI: Doubao API客户端初始化失败: {e}")
+        
+        if not self.claude_client and not self.doubao_client:
+            print("🤖 ChatAI: 没有可用的API客户端，使用模拟回复模式")
+    
+    def _set_active_model(self, model_type: str):
+        """设置当前活跃的模型"""
+        self.model_type = model_type.lower()
+        
+        if self.model_type == "claude" and self.claude_client:
+            self.current_client = self.claude_client
             self.use_api = True
-            print("🤖 ChatAI: Claude API客户端初始化成功")
-            
-        except Exception as e:
-            print(f"🤖 ChatAI: API客户端初始化失败，使用模拟模式: {e}")
+            print(f"🤖 ChatAI: 切换到Claude模型")
+        elif self.model_type == "doubao" and self.doubao_client:
+            self.current_client = self.doubao_client
+            self.use_api = True
+            print(f"🤖 ChatAI: 切换到Doubao模型")
+        else:
+            self.current_client = None
             self.use_api = False
+            print(f"🤖 ChatAI: 模型 {model_type} 不可用，使用模拟回复模式")
+    
+    def switch_model(self, model_type: str):
+        """动态切换AI模型"""
+        print(f"🤖 ChatAI: 尝试切换到 {model_type} 模型")
+        self._set_active_model(model_type)
+        # 清除缓存以确保使用新模型
+        self.response_cache.clear()
+    
+    def get_available_models(self) -> List[str]:
+        """获取可用的模型列表"""
+        available = []
+        if self.claude_client:
+            available.append("claude")
+        if self.doubao_client:
+            available.append("doubao")
+        available.append("mock")  # 模拟模式总是可用
+        return available
+    
+    def get_current_model_info(self) -> Dict:
+        """获取当前模型信息"""
+        return {
+            "model_type": self.model_type,
+            "use_api": self.use_api,
+            "available_models": self.get_available_models(),
+            "client_status": {
+                "claude": self.claude_client is not None,
+                "doubao": self.doubao_client is not None
+            }
+        }
+    
+    def get_best_model_for_npc(self, npc_id: str) -> str:
+        """根据NPC获取最佳模型"""
+        return self.config_manager.get_preferred_model_for_npc(npc_id)
+    
+    def auto_switch_model_for_npc(self, npc_id: str):
+        """为NPC自动切换到最佳模型"""
+        best_model = self.get_best_model_for_npc(npc_id)
+        if best_model != self.model_type:
+            print(f"🔄 为NPC {npc_id} 自动切换到 {best_model} 模型")
+            self.switch_model(best_model)
     
     async def generate_npc_response(self, npc_id: str, player_message: str, context: Dict = None) -> str:
         """
@@ -249,22 +343,25 @@ class ChatAI:
             NPC的回复文本
         """
         
+        # 自动为NPC选择最佳模型
+        self.auto_switch_model_for_npc(npc_id)
+        
         # 添加玩家消息到对话历史
         self._add_to_conversation_history(npc_id, "玩家", player_message)
         
-        # 生成包含历史的缓存键（考虑最近3轮对话）
+        # 生成包含历史的缓存键（考虑最近3轮对话和模型类型）
         recent_history = self._get_recent_conversation_context(npc_id, 3)
-        cache_key = f"{npc_id}:{hash(str(recent_history) + player_message)}"
+        cache_key = f"{npc_id}:{self.model_type}:{hash(str(recent_history) + player_message)}"
         
         if cache_key in self.response_cache:
             response = self.response_cache[cache_key]
-        elif self.use_api and self.client:
+        elif self.use_api and self.current_client:
             try:
                 response = await self._generate_api_response(npc_id, player_message, context)
                 # 缓存回复
                 self.response_cache[cache_key] = response
             except Exception as e:
-                print(f"🤖 ChatAI: API调用失败，回退到模拟模式: {e}")
+                print(f"🤖 ChatAI: {self.model_type} API调用失败，回退到模拟模式: {e}")
                 # 回退到模拟回复
                 response = self._generate_mock_response(npc_id, player_message)
         else:
@@ -276,6 +373,15 @@ class ChatAI:
         return response
     
     async def _generate_api_response(self, npc_id: str, player_message: str, context: Dict = None) -> str:
+        """使用当前选定的API生成回复"""
+        if self.model_type == "claude":
+            return await self._generate_claude_response(npc_id, player_message, context)
+        elif self.model_type == "doubao":
+            return await self._generate_doubao_response(npc_id, player_message, context)
+        else:
+            raise ValueError(f"不支持的模型类型: {self.model_type}")
+    
+    async def _generate_claude_response(self, npc_id: str, player_message: str, context: Dict = None) -> str:
         """使用Claude API生成回复"""
         
         npc_info = self.npc_personalities.get(npc_id, {
@@ -315,7 +421,7 @@ class ChatAI:
 请以{npc_info['name']}的身份，基于对话历史自然回复："""
 
         try:
-            response = self.client.messages.create(
+            response = self.claude_client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=150,
                 temperature=0.7,
@@ -336,6 +442,73 @@ class ChatAI:
             
         except Exception as e:
             print(f"🤖 ChatAI: Claude API调用异常: {e}")
+            raise e
+    
+    async def _generate_doubao_response(self, npc_id: str, player_message: str, context: Dict = None) -> str:
+        """使用Doubao API生成回复"""
+        
+        npc_info = self.npc_personalities.get(npc_id, {
+            "name": "NPC",
+            "personality": "友好的村民",
+            "context": "小镇居民",
+            "speaking_style": "友好随和"
+        })
+        
+        # 获取对话历史
+        conversation_history = self._format_conversation_history(npc_id, 5)
+        
+        # 构建提示词
+        system_prompt = f"""你是游戏《萌爪钓鱼》中的NPC：{npc_info['name']}
+
+**角色设定：**
+- 性格：{npc_info['personality']}
+- 背景：{npc_info['context']}
+- 说话风格：{npc_info['speaking_style']}
+
+**重要指示：**
+1. 请始终以{npc_info['name']}的身份回复
+2. 保持角色的性格和说话风格
+3. 回复要简洁自然，像真正的对话
+4. 不要提及你是AI或游戏角色
+5. 回复长度控制在1-2句话
+6. 使用中文回复
+7. 基于对话历史保持连贯性，记住之前聊过的内容
+8. 如果玩家提到之前的话题，要能够回应
+
+**对话上下文：**
+{conversation_history}
+
+**当前情况：**
+玩家对你说："{player_message}"
+
+请以{npc_info['name']}的身份，基于对话历史自然回复："""
+
+        try:
+            response = self.doubao_client.chat.completions.create(
+                model="doubao-seed-1-6-250615",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是一个游戏中的NPC角色，需要根据角色设定进行对话。"
+                    },
+                    {
+                        "role": "user", 
+                        "content": system_prompt
+                    }
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            
+            # 清理回复（移除可能的引号或格式符号）
+            response_text = response_text.strip('"\'`')
+            
+            return response_text
+            
+        except Exception as e:
+            print(f"🤖 ChatAI: Doubao API调用异常: {e}")
             raise e
     
     def _generate_mock_response(self, npc_id: str, player_message: str) -> str:

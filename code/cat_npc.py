@@ -7,12 +7,21 @@ from ascii_sprites import ASCIINPC
 class CatNPC(ASCIINPC):
     """猫咪NPC类 - 继承自ASCIINPC并添加移动功能"""
     
-    def __init__(self, pos, npc_id, npc_manager, groups, cat_name, cat_personality):
+    def __init__(self, pos, npc_id, npc_manager, groups, cat_name, cat_personality, collision_sprites=None):
         super().__init__(pos, npc_id, npc_manager, groups)
         
         # 猫咪特有属性
         self.cat_name = cat_name
         self.cat_personality = cat_personality
+        
+        # 碰撞检测系统（参考玩家系统）
+        self.collision_sprites = collision_sprites
+        self.pos = pygame.math.Vector2(self.rect.center)  # 精确位置
+        
+        # 创建hitbox用于碰撞检测
+        hitbox_size = TILE_SIZE // 2  # 猫咪比玩家小一点
+        self.hitbox = pygame.Rect(0, 0, hitbox_size, hitbox_size)
+        self.hitbox.center = self.rect.center
         
         # 移动相关属性
         self.move_speed = random.uniform(20, 40)  # 随机移动速度
@@ -23,8 +32,8 @@ class CatNPC(ASCIINPC):
         self.idle_time = 0
         self.max_idle_time = random.uniform(3, 8)  # 3-8秒闲置时间
         
-        # 移动边界（游戏世界边界）
-        self.world_bounds = pygame.Rect(0, 0, 1600, 1600)  # 假设游戏世界边界
+        # 移动边界（游戏世界边界）- 更保守的边界
+        self.world_bounds = pygame.Rect(64, 64, 1472, 1472)  # 留出边界缓冲
         
         # 移动状态
         self.movement_state = "idle"  # idle, moving, sitting
@@ -60,28 +69,84 @@ class CatNPC(ASCIINPC):
         # 在附近选择一个随机位置
         current_x, current_y = self.rect.center
         
-        # 移动范围限制在当前位置的200像素内
-        max_distance = 200
-        angle = random.uniform(0, 2 * math.pi)
-        distance = random.uniform(50, max_distance)
+        # 尝试多次找到有效的移动目标
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            # 移动范围限制在当前位置的200像素内
+            max_distance = 200
+            angle = random.uniform(0, 2 * math.pi)
+            distance = random.uniform(50, max_distance)
+            
+            target_x = current_x + math.cos(angle) * distance
+            target_y = current_y + math.sin(angle) * distance
+            
+            # 确保目标在世界边界内
+            target_x = max(self.world_bounds.left + 32, min(self.world_bounds.right - 32, target_x))
+            target_y = max(self.world_bounds.top + 32, min(self.world_bounds.bottom - 32, target_y))
+            
+            # 检查目标位置是否有障碍物
+            if self._is_position_valid(target_x, target_y):
+                self.target_pos = pygame.math.Vector2(target_x, target_y)
+                
+                # 计算方向向量
+                target_vector = self.target_pos - pygame.math.Vector2(self.rect.center)
+                if target_vector.length() > 0:
+                    self.direction = target_vector.normalize()
+                else:
+                    self.direction = pygame.math.Vector2(0, 0)
+                
+                print(f"[CatNPC] {self.cat_name} 设置新目标: {self.target_pos}")
+                return
         
-        target_x = current_x + math.cos(angle) * distance
-        target_y = current_y + math.sin(angle) * distance
+        # 如果所有尝试都失败，选择一个简单的方向
+        self._set_fallback_target()
+    
+    def _is_position_valid(self, x, y):
+        """检查位置是否有效（无障碍物）"""
+        if not self.collision_sprites:
+            return True
+            
+        # 创建临时hitbox来检查碰撞
+        temp_hitbox = pygame.Rect(0, 0, self.hitbox.width, self.hitbox.height)
+        temp_hitbox.center = (x, y)
         
-        # 确保目标在世界边界内
+        for sprite in self.collision_sprites.sprites():
+            if hasattr(sprite, 'hitbox'):
+                if sprite.hitbox.colliderect(temp_hitbox):
+                    return False
+            elif sprite.rect.colliderect(temp_hitbox):
+                return False
+        
+        return True
+    
+    def _set_fallback_target(self):
+        """设置回退目标（简单的方向移动）"""
+        current_x, current_y = self.rect.center
+        
+        # 选择四个基本方向之一
+        directions = [
+            (1, 0),   # 右
+            (-1, 0),  # 左
+            (0, 1),   # 下
+            (0, -1),  # 上
+            (1, 1),   # 右下
+            (-1, 1),  # 左下
+            (1, -1),  # 右上
+            (-1, -1)  # 左上
+        ]
+        
+        dx, dy = random.choice(directions)
+        target_x = current_x + dx * 100
+        target_y = current_y + dy * 100
+        
+        # 确保在边界内
         target_x = max(self.world_bounds.left + 32, min(self.world_bounds.right - 32, target_x))
         target_y = max(self.world_bounds.top + 32, min(self.world_bounds.bottom - 32, target_y))
         
         self.target_pos = pygame.math.Vector2(target_x, target_y)
+        self.direction = pygame.math.Vector2(dx, dy).normalize()
         
-        # 计算方向向量
-        target_vector = self.target_pos - pygame.math.Vector2(self.rect.center)
-        if target_vector.length() > 0:
-            self.direction = target_vector.normalize()
-        else:
-            self.direction = pygame.math.Vector2(0, 0)
-        
-        print(f"[CatNPC] {self.cat_name} 设置新目标: {self.target_pos}")
+        print(f"[CatNPC] {self.cat_name} 使用回退目标: {self.target_pos}")
     
     def _choose_movement_state(self):
         """选择移动状态"""
@@ -130,9 +195,12 @@ class CatNPC(ASCIINPC):
                 )
                 new_pos = pygame.math.Vector2(self.rect.center) + small_move
                 
-                # 边界检查
-                if self.world_bounds.contains(pygame.Rect(new_pos.x-16, new_pos.y-16, 32, 32)):
+                # 边界检查和碰撞检查
+                if (self.world_bounds.contains(pygame.Rect(new_pos.x-16, new_pos.y-16, 32, 32)) and
+                    self._is_position_valid(new_pos.x, new_pos.y)):
+                    self.pos = new_pos
                     self.rect.center = new_pos
+                    self.hitbox.center = new_pos
         # sitting状态不移动
         
         # 更新社交互动
@@ -154,17 +222,80 @@ class CatNPC(ASCIINPC):
             self._set_random_target()
             return
         
-        # 移动向目标
-        movement = self.direction * self.move_speed * dt
-        new_pos = current_pos + movement
+        # 规范化方向向量
+        if self.direction.magnitude() > 0:
+            self.direction = self.direction.normalize()
         
-        # 边界检查
-        new_rect = pygame.Rect(new_pos.x - 16, new_pos.y - 16, 32, 32)
-        if self.world_bounds.contains(new_rect):
-            self.rect.center = new_pos
+        # 水平移动（参考玩家移动逻辑）
+        self.pos.x += self.direction.x * self.move_speed * dt
+        self.hitbox.centerx = round(self.pos.x)
+        self.rect.centerx = self.hitbox.centerx
+        self.collision('horizontal')
+        
+        # 垂直移动
+        self.pos.y += self.direction.y * self.move_speed * dt
+        self.hitbox.centery = round(self.pos.y)
+        self.rect.centery = self.hitbox.centery
+        self.collision('vertical')
+        
+        # 检查是否卡住了（如果碰撞导致无法接近目标）
+        new_distance = pygame.math.Vector2(self.rect.center).distance_to(self.target_pos)
+        if new_distance >= distance_to_target - 1:  # 如果距离没有减少
+            self.stuck_counter = getattr(self, 'stuck_counter', 0) + 1
+            if self.stuck_counter > 60:  # 1秒后重新选择目标（假设60FPS）
+                self._set_random_target()
+                self.stuck_counter = 0
         else:
-            # 碰到边界，选择新目标
-            self._set_random_target()
+            self.stuck_counter = 0
+    
+    def collision(self, direction):
+        """碰撞检测方法（参考玩家系统）"""
+        if not self.collision_sprites:
+            return
+            
+        for sprite in self.collision_sprites.sprites():
+            if hasattr(sprite, 'hitbox'):
+                if sprite.hitbox.colliderect(self.hitbox):
+                    if direction == 'horizontal':
+                        if self.direction.x > 0:  # 向右移动
+                            self.hitbox.right = sprite.hitbox.left
+                        if self.direction.x < 0:  # 向左移动
+                            self.hitbox.left = sprite.hitbox.right
+                        self.rect.centerx = self.hitbox.centerx
+                        self.pos.x = self.hitbox.centerx
+                        
+                        # 碰到障碍物，重新选择目标
+                        if random.random() < 0.1:  # 10%概率重新选择目标
+                            self._set_random_target()
+                    
+                    if direction == 'vertical':
+                        if self.direction.y > 0:  # 向下移动
+                            self.hitbox.bottom = sprite.hitbox.top
+                        if self.direction.y < 0:  # 向上移动
+                            self.hitbox.top = sprite.hitbox.bottom
+                        self.rect.centery = self.hitbox.centery
+                        self.pos.y = self.hitbox.centery
+                        
+                        # 碰到障碍物，重新选择目标
+                        if random.random() < 0.1:  # 10%概率重新选择目标
+                            self._set_random_target()
+            elif sprite.rect.colliderect(self.hitbox):
+                # 对于没有hitbox的碰撞体，使用rect
+                if direction == 'horizontal':
+                    if self.direction.x > 0:
+                        self.hitbox.right = sprite.rect.left
+                    if self.direction.x < 0:
+                        self.hitbox.left = sprite.rect.right
+                    self.rect.centerx = self.hitbox.centerx
+                    self.pos.x = self.hitbox.centerx
+                    
+                if direction == 'vertical':
+                    if self.direction.y > 0:
+                        self.hitbox.bottom = sprite.rect.top
+                    if self.direction.y < 0:
+                        self.hitbox.top = sprite.rect.bottom
+                    self.rect.centery = self.hitbox.centery
+                    self.pos.y = self.hitbox.centery
     
     def _update_ascii_display(self):
         """更新ASCII字符显示"""
@@ -456,53 +587,153 @@ class CatManager:
             "淘气捣蛋，喜欢恶作剧"
         ]
     
-    def create_cats(self, all_sprites, collision_sprites, npc_sprites, npc_manager):
+    def create_cats(self, all_sprites, collision_sprites, npc_sprites, npc_manager, player_pos=None):
         """创建所有猫咪NPC"""
-        # 定义猫咪的生成位置（避开建筑和重要区域）
-        spawn_areas = [
-            (600, 400),   # 池塘附近
-            (800, 600),   # 农田区域
-            (1000, 800),  # 开阔地带
-            (500, 1000),  # 南部区域
-            (1200, 400),  # 东部区域
-            (400, 800),   # 西部区域
-            (900, 1200),  # 东南区域
-            (700, 300),   # 北部区域
-            (1100, 1000), # 东南角
-            (300, 600),   # 西部中央
-        ]
+        
+        # 如果没有提供玩家位置，使用默认中心位置
+        if player_pos is None:
+            player_pos = (800, 800)  # 地图中心附近
+        
+        print(f"[CatManager] 开始创建猫咪，玩家位置: {player_pos}")
         
         for i in range(10):
             cat_name = self.cat_names[i]
             cat_personality = self.cat_personalities[i]
-            spawn_pos = spawn_areas[i]
             
-            # 添加一些随机偏移
-            actual_pos = (
-                spawn_pos[0] + random.randint(-50, 50),
-                spawn_pos[1] + random.randint(-50, 50)
+            # 智能选择spawn位置
+            spawn_pos = self._find_valid_spawn_position(
+                player_pos, collision_sprites, attempt_id=i
             )
+            
+            if spawn_pos is None:
+                print(f"[CatManager] 警告: 无法为猫咪 {cat_name} 找到有效位置，跳过创建")
+                continue
             
             # 创建猫咪NPC ID
             cat_id = f"cat_{i+1:02d}"
             
             # 创建猫咪NPC
             cat = CatNPC(
-                pos=actual_pos,
+                pos=spawn_pos,
                 npc_id=cat_id,
                 npc_manager=npc_manager,
                 groups=[all_sprites, npc_sprites],  # 不加入collision_sprites，猫咪可以重叠
                 cat_name=cat_name,
-                cat_personality=cat_personality
+                cat_personality=cat_personality,
+                collision_sprites=collision_sprites  # 传递碰撞精灵组
             )
             
             # 给猫咪设置管理器引用，用于找到其他猫咪
             cat.cat_manager = self
             
             self.cats.append(cat)
-            print(f"[CatManager] 创建猫咪: {cat_name} ({cat_id}) 位置: {actual_pos}")
+            print(f"[CatManager] 创建猫咪: {cat_name} ({cat_id}) 位置: {spawn_pos}")
         
         print(f"[CatManager] 成功创建 {len(self.cats)} 只猫咪")
+    
+    def _find_valid_spawn_position(self, player_pos, collision_sprites, attempt_id=0):
+        """寻找有效的spawn位置"""
+        player_x, player_y = player_pos
+        
+        # 定义搜索参数
+        min_distance_from_player = 100  # 距离玩家最小距离
+        max_distance_from_player = 400  # 距离玩家最大距离
+        max_attempts = 50  # 最大尝试次数
+        
+        # 预定义的候选区域（相对于玩家位置的偏移）
+        candidate_offsets = [
+            # 四个主要方向
+            (200, 0), (-200, 0), (0, 200), (0, -200),
+            # 对角线方向
+            (150, 150), (-150, 150), (150, -150), (-150, -150),
+            # 更远的位置
+            (300, 100), (-300, 100), (100, 300), (-100, 300),
+            (300, -100), (-300, -100), (100, -300), (-100, -300),
+            # 额外的随机方向
+            (250, 50), (-250, 50), (50, 250), (-50, 250),
+        ]
+        
+        # 首先尝试预定义的候选位置
+        for i, (dx, dy) in enumerate(candidate_offsets):
+            if i > attempt_id * 3:  # 为每只猫使用不同的起始位置
+                break
+                
+            candidate_x = player_x + dx
+            candidate_y = player_y + dy
+            
+            # 添加一些随机偏移
+            candidate_x += random.randint(-30, 30)
+            candidate_y += random.randint(-30, 30)
+            
+            if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
+                return (candidate_x, candidate_y)
+        
+        # 如果预定义位置都不行，随机搜索
+        for attempt in range(max_attempts):
+            # 在玩家周围的环形区域内随机选择
+            angle = random.uniform(0, 2 * math.pi)
+            distance = random.uniform(min_distance_from_player, max_distance_from_player)
+            
+            candidate_x = player_x + math.cos(angle) * distance
+            candidate_y = player_y + math.sin(angle) * distance
+            
+            if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
+                return (candidate_x, candidate_y)
+        
+        # 如果还是找不到，尝试更大的搜索范围
+        print(f"[CatManager] 扩大搜索范围寻找spawn位置...")
+        for attempt in range(max_attempts):
+            angle = random.uniform(0, 2 * math.pi)
+            distance = random.uniform(max_distance_from_player, max_distance_from_player * 2)
+            
+            candidate_x = player_x + math.cos(angle) * distance
+            candidate_y = player_y + math.sin(angle) * distance
+            
+            if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
+                return (candidate_x, candidate_y)
+        
+        print(f"[CatManager] 警告: 无法找到有效的spawn位置")
+        return None
+    
+    def _is_spawn_position_valid(self, x, y, player_pos, collision_sprites):
+        """检查spawn位置是否有效"""
+        
+        # 1. 基本边界检查（保守的地图边界）
+        map_bounds = pygame.Rect(100, 100, 1400, 1400)  # 比实际地图小一点
+        position_rect = pygame.Rect(x - 32, y - 32, 64, 64)
+        if not map_bounds.contains(position_rect):
+            return False
+        
+        # 2. 与玩家距离检查
+        player_x, player_y = player_pos
+        distance_to_player = math.sqrt((x - player_x)**2 + (y - player_y)**2)
+        
+        # 不能太近也不能太远
+        if distance_to_player < 100 or distance_to_player > 800:
+            return False
+        
+        # 3. 碰撞检测 - 检查是否与障碍物重叠
+        if collision_sprites:
+            # 创建临时hitbox检查碰撞
+            temp_hitbox = pygame.Rect(x - 16, y - 16, 32, 32)  # 猫咪的hitbox大小
+            
+            for sprite in collision_sprites.sprites():
+                if hasattr(sprite, 'hitbox'):
+                    if sprite.hitbox.colliderect(temp_hitbox):
+                        return False
+                elif hasattr(sprite, 'rect'):
+                    if sprite.rect.colliderect(temp_hitbox):
+                        return False
+        
+        # 4. 与已存在的猫咪距离检查（避免太密集）
+        min_cat_distance = 80
+        for existing_cat in self.cats:
+            cat_x, cat_y = existing_cat.rect.center
+            distance = math.sqrt((x - cat_x)**2 + (y - cat_y)**2)
+            if distance < min_cat_distance:
+                return False
+        
+        return True
     
     def get_cat_statistics(self):
         """获取猫咪统计信息"""

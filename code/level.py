@@ -73,7 +73,7 @@ class Level:
 
 		# 天气系统
 		self.rain = Rain(self.all_sprites)
-		self.raining = randint(0,10) > 7  # 随机决定是否下雨
+		self.raining = False  # 不下雨
 		self.soil_layer.raining = self.raining
 		self.sky = Sky()  # 天空效果
 
@@ -188,12 +188,17 @@ class Level:
 			groups=[self.all_sprites, self.npc_sprites, self.collision_sprites]
 		)
 		
-		# 创建猫咪NPCs
+		# 创建猫咪NPCs（传递玩家位置）
+		player_pos = None
+		if self.player:
+			player_pos = self.player.rect.center
+		
 		self.cat_manager.create_cats(
 			self.all_sprites, 
 			self.collision_sprites, 
 			self.npc_sprites, 
-			self.npc_manager
+			self.npc_manager,
+			player_pos=player_pos
 		)
 		print(f"[Level] 创建了 {len(self.cat_manager.cats)} 只猫咪NPC")
 		
