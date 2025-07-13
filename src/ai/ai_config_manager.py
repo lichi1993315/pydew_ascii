@@ -8,12 +8,13 @@ AI模型配置管理器
 import json
 import os
 from typing import Dict, Optional, List
+from src.core.support import safe_print,get_resource_path
 
 class AIConfigManager:
     """AI配置管理器"""
     
-    def __init__(self, config_path: str = "config/ai_model_config.json"):
-        self.config_path = config_path
+    def __init__(self):
+        self.config_path = get_resource_path('config/ai_model_config.json')
         self.config = {}
         self.load_config()
     
@@ -23,12 +24,12 @@ class AIConfigManager:
             if os.path.exists(self.config_path):
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     self.config = json.load(f)
-                print(f"✅ 加载AI配置文件: {self.config_path}")
+                safe_print(f"SUCCESS: Loaded AI config file: {self.config_path}")
             else:
-                print(f"⚠️  配置文件不存在: {self.config_path}，使用默认配置")
+                safe_print(f"WARNING: Config file not found: {self.config_path}, using default config")
                 self.config = self._get_default_config()
         except Exception as e:
-            print(f"❌ 加载配置文件失败: {e}，使用默认配置")
+            safe_print(f"ERROR: Failed to load config file: {e}, using default config")
             self.config = self._get_default_config()
     
     def _get_default_config(self) -> Dict:
@@ -136,29 +137,29 @@ class AIConfigManager:
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
-            print(f"✅ 配置已保存到: {self.config_path}")
+            safe_print(f"SUCCESS: Config saved to: {self.config_path}")
         except Exception as e:
-            print(f"❌ 保存配置失败: {e}")
+            safe_print(f"ERROR: Failed to save config: {e}")
     
     def print_status(self):
         """打印配置状态"""
-        print("\n📋 AI模型配置状态:")
-        print(f"默认模型: {self.get_default_model()}")
-        print(f"回退模型: {self.get_fallback_model()}")
+        safe_print("\nAI Model Configuration Status:")
+        safe_print(f"默认模型: {self.get_default_model()}")
+        safe_print(f"回退模型: {self.get_fallback_model()}")
         
-        print("\n可用模型:")
+        safe_print("\n可用模型:")
         for model_name in self.get_available_models():
             available = self.is_model_available(model_name)
-            status = "✅" if available else "❌"
+            status = "OK" if available else "FAIL"
             model_config = self.get_model_config(model_name)
             display_name = model_config.get("name", model_name) if model_config else model_name
-            print(f"  {status} {display_name} ({model_name})")
+            safe_print(f"  {status} {display_name} ({model_name})")
         
-        print("\nNPC模型偏好:")
+        safe_print("\nNPC模型偏好:")
         preferences = self.config.get("npc_model_preferences", {})
         for npc_type, pref in preferences.items():
             preferred_model = pref.get("preferred_model", "未设置")
-            print(f"  {npc_type}: {preferred_model}")
+            safe_print(f"  {npc_type}: {preferred_model}")
 
 # 全局配置管理器实例
 _config_manager = None

@@ -1,6 +1,7 @@
 import pygame
 from typing import List
 from src.utils.font_manager import FontManager
+from datetime import datetime
 
 class LogPanel:
     """日志面板UI - 显示玩家历史行为记录"""
@@ -8,6 +9,9 @@ class LogPanel:
     def __init__(self):
         self.is_active = False
         self.font_manager = FontManager.get_instance()
+        
+        # 内部日志列表
+        self.logs = []
         
         # 字体设置
         self.title_font = self.font_manager.load_chinese_font(32, "log_title_font")
@@ -21,6 +25,7 @@ class LogPanel:
             'border': (255, 255, 255),           # 白色边框
             'title': (100, 200, 255),            # 蓝色标题
             'fishing': (100, 150, 255),          # 蓝色钓鱼行为
+            'fishing_cat': (255, 150, 255),      # 粉色钓鱼猫咪
             'dialogue': (255, 200, 100),         # 橙色对话行为
             'shop': (100, 255, 100),             # 绿色商店行为
             'quest': (255, 255, 100),            # 黄色任务行为
@@ -48,11 +53,20 @@ class LogPanel:
         # 筛选设置
         self.filter_type = None  # 当前筛选类型
         self.available_filters = [
-            None, 'fishing', 'dialogue', 'shop', 'quest', 
+            None, 'fishing', 'fishing_cat', 'dialogue', 'shop', 'quest', 
             'farming', 'tool_use', 'tool_switch', 'seed_switch'
         ]
         self.current_filter_index = 0
-        
+    
+    def clear_logs(self):
+        """清空所有日志"""
+        self.logs.clear()
+        print("[日志面板] 清空所有日志")
+    
+    def get_logs_count(self):
+        """获取当前日志数量"""
+        return len(self.logs)
+    
     def toggle(self):
         """切换日志面板显示状态"""
         self.is_active = not self.is_active
@@ -129,9 +143,13 @@ class LogPanel:
         current_y = title_rect.bottom + 10
         
         # 统计信息
-        stats = player.get_behavior_statistics()
+        stats = player.get_behavior_statistics() if hasattr(player, 'get_behavior_statistics') else {}
+        player_log_count = len(player.behavior_history) if hasattr(player, 'behavior_history') else 0
+        internal_log_count = len(self.logs)
+        total_logs = player_log_count + internal_log_count
+        
         stats_text = self.text_font.render(
-            f"总记录: {stats['total_behaviors']} 条 | 游戏时长: {stats['session_duration']}", 
+            f"总记录: {total_logs} 条 (玩家: {player_log_count}, 系统: {internal_log_count})", 
             True, self.colors['default']
         )
         stats_rect = stats_text.get_rect(centerx=self.panel_width//2, y=current_y)
@@ -238,6 +256,16 @@ class LogPanel:
         if 'fish_caught' in details:
             detail_parts.append(f"鱼类: {details['fish_caught']}({details.get('fish_length', 0)}cm)")
         
+        # 钓鱼猫咪详情
+        if 'cat_name' in details:
+            detail_parts.append(f"猫咪: {details['cat_name']}")
+        if 'cat_personality' in details:
+            detail_parts.append(f"性格: {details['cat_personality']}")
+        if 'rarity' in details:
+            detail_parts.append(f"稀有度: {details['rarity']}")
+        if 'ascii_char' in details:
+            detail_parts.append(f"符号: {details['ascii_char']}")
+        
         if 'npc_name' in details:
             detail_parts.append(f"NPC: {details['npc_name']}")
             
@@ -264,10 +292,24 @@ class LogPanel:
     
     def _get_filtered_logs(self, player):
         """获取筛选后的日志列表"""
+        # 合并内部日志和玩家行为日志
+        all_logs = []
+        
+        # 添加玩家行为日志
+        if hasattr(player, 'behavior_history') and player.behavior_history:
+            all_logs.extend(player.behavior_history)
+        
+        # 添加内部日志
+        all_logs.extend(self.logs)
+        
+        # 按时间戳排序（最新的在前）
+        all_logs.sort(key=lambda x: x.get('timestamp', '00:00:00'), reverse=True)
+        
+        # 应用筛选
         if self.filter_type is None:
-            return player.behavior_history.copy()
+            return all_logs
         else:
-            return [log for log in player.behavior_history if log['type'] == self.filter_type]
+            return [log for log in all_logs if log['type'] == self.filter_type]
     
     def _render_scrollbar(self, surface, content_start_y, content_height, total_height):
         """渲染滚动条"""

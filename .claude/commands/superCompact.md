@@ -35,7 +35,7 @@ Git提交: [提交哈希] (如果适用)
 ```
 
 #### 更新 .supercompact_log
-创建或追加日志文件，记录每次SuperCompact的执行时间和状态。
+创建或追加日志文件，记录每次SuperCompact的执行时间，实现功能和状态。
 
 ### 3. 创建Git提交
 如果当前目录是Git仓库且有变更（包括刚才更新的项目文件）：
@@ -43,6 +43,9 @@ Git提交: [提交哈希] (如果适用)
 - 创建提交，提交信息格式：
   ```
   auto: compact session at [时间戳]
+
+  commit info: 
+  [supercompact_log中的提交内容详情]
   
   🤖 Generated with [Claude Code](https://claude.ai/code)
   

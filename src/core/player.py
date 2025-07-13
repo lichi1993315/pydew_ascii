@@ -61,6 +61,15 @@ class Player(pygame.sprite.Sprite):
 		self.is_fishing = False
 		self.water_sprites = None  # 将在level中设置
 		self.fish_system = FishSystem()  # 鱼类系统
+		
+		# 钓鱼状态机
+		self.fishing_state = "idle"  # idle, casting, waiting, fish_hooked, minigame
+		self.fishing_timer = 0.0
+		self.fish_bite_time = 0.0  # 鱼上钩的时间
+		self.bait_shake_timer = 0.0  # 鱼饵晃动计时器
+		self.bait_position = None  # 鱼饵在水中的位置
+		self.space_key_pressed = False  # 跟踪空格键状态，避免连续触发
+		self.current_catch_target = None  # 当前钓到的目标信息
 
 		# general setup
 		self.render_ascii_player()
@@ -158,11 +167,12 @@ class Player(pygame.sprite.Sprite):
 		# 尝试加载音效文件
 		try:
 			if pygame.mixer.get_init():
-				self.watering = pygame.mixer.Sound('assets/audio/water.mp3')
+				water_path = get_resource_path('assets/audio/water.mp3')
+				self.watering = pygame.mixer.Sound(water_path)
 				self.watering.set_volume(0.2)
 		except (pygame.error, FileNotFoundError) as e:
-			print(f"⚠️ 浇水音效加载失败: {e}")
-			print("游戏将在无音效模式下运行")
+			print(f"WARNING: Water audio loading failed: {e}")
+			print("Game will run without sound effects")
 
 	def get_current_timestamp(self):
 		"""获取当前时间戳"""
@@ -211,8 +221,9 @@ class Player(pygame.sprite.Sprite):
 				"fish_caught": result.get('name', 'Unknown'),
 				"fish_length": result.get('length', 0),
 				"fish_rarity": result.get('rarity', 'common'),
-				"fish_price": result.get('price', 0),
-				"fish_ascii": result.get('ascii_char', '?')
+				"fish_price": result.get('price', result.get('value', 0)),  # 兼容垃圾物品的value字段
+				"fish_ascii": result.get('ascii_char', '?'),
+				"catch_type": result.get('type', 'fish')  # 记录捕获类型
 			})
 		
 		self.record_behavior("fishing", fishing_action, details)
@@ -395,72 +406,335 @@ class Player(pygame.sprite.Sprite):
 				return True
 		return False
 	
-	def start_fishing(self):
+	def find_nearest_water_position(self):
 		"""
-		开始钓鱼
+		找到最近的水位置用于放置鱼饵
 		"""
-		if self.check_near_water() and not self.is_fishing:
-			self.is_fishing = True
-			self.timers['fishing'].activate()
-			self.direction = pygame.math.Vector2()  # 停止移动
-			print("开始钓鱼...")
-			self.record_fishing_behavior("开始钓鱼")
+		if not hasattr(self, 'water_sprites') or not self.water_sprites:
+			return None
+		
+		player_center = self.rect.center
+		nearest_water = None
+		min_distance = float('inf')
+		
+		for water_sprite in self.water_sprites.sprites():
+			water_center = water_sprite.rect.center
+			distance = ((player_center[0] - water_center[0]) ** 2 + 
+					   (player_center[1] - water_center[1]) ** 2) ** 0.5
+			
+			if distance < min_distance:
+				min_distance = distance
+				nearest_water = water_sprite
+		
+		if nearest_water:
+			# 返回水中心位置
+			return nearest_water.rect.center
+		return None
 	
+	def handle_fishing_input(self):
+		"""
+		开始钓鱼 - 投掷鱼饵
+		"""
+		if self.check_near_water() and self.fishing_state == "idle":
+			# 找到最近的水位置放置鱼饵
+			self.bait_position = self.find_nearest_water_position()
+			
+			# 调试信息：打印鱼饵位置
+			if self.bait_position:
+				print(f"🎣 鱼饵位置设置为: {self.bait_position}")
+			else:
+				print("❌ 鱼饵位置设置失败！")
+			
+			# 进入出杆状态
+			self.is_fishing = True
+			self.fishing_state = "casting"
+			self.fishing_timer = 0.5  # 出杆动画时间0.5秒
+			self.direction = pygame.math.Vector2()  # 停止移动
+			print("🎣 出杆，投掷鱼饵到水中...")
+			
+			
+			# 添加到聊天面板
+			if hasattr(self, 'chat_panel') and self.chat_panel:
+				self.chat_panel.add_system_message("🎣 投掷鱼饵到水中...")
+		elif self.fishing_state == "waiting":
+			self.cancel_fishing()
+		elif self.fishing_state == "fish_hooked":
+			self.try_hook_fish()
+	
+	def cancel_fishing(self):
+		"""
+		取消钓鱼 - 提前收杆
+		"""
+		if self.fishing_state in ["waiting"]:
+			print("🎣 提前收杆，没有钓到鱼")
+			if hasattr(self, 'chat_panel') and self.chat_panel:
+				self.chat_panel.add_system_message("🎣 提前收杆，没有钓到鱼")
+			self._reset_fishing_state()
+	
+	def try_hook_fish(self):
+		"""
+		尝试收杆 - 当鱼上钩时
+		"""
+		if self.fishing_state == "fish_hooked":
+			# 在小游戏开始前确定钓到的目标
+			self.current_catch_target = self.fish_system.catch_fish()
+			
+			if self.current_catch_target:
+				# 转换为小游戏所需的格式
+				if self.current_catch_target.get('type') == 'cat':
+					catch_info = {
+						'type': 'cat',
+						'rarity': self.current_catch_target.get('rarity', 'common')
+					}
+				else:
+					catch_info = {
+						'type': 'fish', 
+						'rarity': self.current_catch_target.get('rarity', 'common')
+					}
+				
+				print(f"🎣 开始收杆，进入钓鱼小游戏！目标: {catch_info['type']} ({catch_info['rarity']})")
+				if hasattr(self, 'chat_panel') and self.chat_panel:
+					self.chat_panel.add_system_message("🎣 鱼上钩了！开始收杆...")
+				
+				# 启动钓鱼小游戏，传入目标信息
+				self.fishing_state = "minigame"
+				if hasattr(self, 'level') and self.level:
+					self.level.fishing_minigame.start_game(catch_info)
+				return True
+			else:
+				# 没有钓到任何东西，直接结束
+				print("🎣 鱼跑掉了...")
+				if hasattr(self, 'chat_panel') and self.chat_panel:
+					self.chat_panel.add_system_message("🎣 鱼跑掉了...")
+				self._reset_fishing_state()
+				return False
+		return False
+	
+	def _reset_fishing_state(self):
+		"""
+		重置钓鱼状态
+		"""
+		self.is_fishing = False
+		self.fishing_state = "idle"
+		self.fishing_timer = 0.0
+		self.fish_bite_time = 0.0
+		self.bait_shake_timer = 0.0
+		self.bait_position = None  # 清除鱼饵位置
+		self.current_catch_target = None  # 清除当前目标信息
+	
+	def update_fishing_state(self, dt):
+		"""
+		更新钓鱼状态机
+		"""
+		if not self.is_fishing:
+			return
+		
+		if self.fishing_state == "casting":
+			# 出杆阶段
+			self.fishing_timer -= dt
+			if self.fishing_timer <= 0:
+				# 出杆完成，进入等待阶段
+				self.fishing_state = "waiting"
+				# 随机设置鱼上钩时间 (3-10秒)
+				import random
+				self.fish_bite_time = random.uniform(3.0, 10.0)
+				self.fishing_timer = self.fish_bite_time
+				print(f"🎣 鱼饵已投入水中，等待鱼上钩... (预计{self.fish_bite_time:.1f}秒)")
+				if hasattr(self, 'chat_panel') and self.chat_panel:
+					self.chat_panel.add_system_message(f"🎣 鱼饵已投入水中，等待鱼上钩...")
+		
+		elif self.fishing_state == "waiting":
+			# 等待鱼上钩阶段
+			self.fishing_timer -= dt
+			if self.fishing_timer <= 0:
+				# 鱼上钩了！
+				self.fishing_state = "fish_hooked"
+				self.bait_shake_timer = 0.0
+				print("🎣 鱼饵开始晃动！鱼上钩了，快按空格键收杆！")
+				if hasattr(self, 'chat_panel') and self.chat_panel:
+					self.chat_panel.add_system_message("🎣 鱼饵晃动！鱼上钩了，快按空格键！")
+		
+		elif self.fishing_state == "fish_hooked":
+			# 鱼上钩状态，等待玩家收杆
+			self.bait_shake_timer += dt
+			# 如果玩家10秒不操作，鱼会跑掉
+			if self.bait_shake_timer > 10.0:
+				print("🎣 鱼跑掉了...")
+				if hasattr(self, 'chat_panel') and self.chat_panel:
+					self.chat_panel.add_system_message("🎣 鱼跑掉了...")
+				self._reset_fishing_state()
+		
+		elif self.fishing_state == "minigame":
+			# 小游戏阶段，检查小游戏是否结束
+			if hasattr(self, 'level') and self.level:
+				if not self.level.fishing_minigame.is_active and self.level.fishing_minigame.get_result():
+					self.finish_fishing()
+
 	def finish_fishing(self):
 		"""
 		钓鱼结束
 		"""
 		if self.is_fishing:
+			# 检查钓鱼小游戏结果
+			minigame_result = None
+			if hasattr(self, 'level') and self.level:
+				minigame_result = self.level.fishing_minigame.get_result()
+			
+			# 如果小游戏还在进行，不结束钓鱼
+			if hasattr(self, 'level') and self.level and self.level.fishing_minigame.is_active:
+				return
+			
 			# 更新钓鱼次数
 			self.fishing_contest_stats["total_attempts"] += 1
 			
-			# 尝试钓鱼
-			caught_fish = self.fish_system.catch_fish()
+			# 根据小游戏结果决定是否获得已确定的目标
+			caught_item = None
+			if minigame_result == "success":
+				# 小游戏成功，使用已确定的目标
+				caught_item = self.current_catch_target
+			elif minigame_result == "failure":
+				# 小游戏失败，钓鱼失败
+				print("钓鱼小游戏失败，没有钓到鱼...")
+				caught_item = None
+			else:
+				# 没有小游戏结果（可能是旧的钓鱼方式），使用已确定的目标
+				caught_item = self.current_catch_target
 			
-			if caught_fish:
-				# 钓到鱼了
-				self.fish_inventory.append(caught_fish)
-				display_name = self.fish_system.get_fish_display_name(caught_fish)
-				
-				# 随机生成鱼的长度（基于鱼的类型和品质）
-				base_length = {
-					'carp': 25, 'salmon': 35, 'trout': 20, 'bass': 30,
-					'minnow': 10, 'pike': 45, 'swordfish': 75, 'golden_carp': 60
-				}.get(caught_fish['id'], 25)
-				
-				# 根据品质调整长度
-				quality_modifier = {
-					'common': 1.0, 'uncommon': 1.2, 'rare': 1.5, 'epic': 2.0, 'legendary': 3.0
-				}.get(caught_fish['rarity'], 1.0)
-				
-				import random
-				fish_length = int(base_length * quality_modifier * random.uniform(0.8, 1.3))
-				caught_fish['length'] = fish_length
-				
-				# 更新钓鱼大赛统计
-				if fish_length > self.fishing_contest_stats["max_fish_length"]:
-					self.fishing_contest_stats["max_fish_length"] = fish_length
-					print(f"[钓鱼大赛] 新纪录！钓到了{fish_length}cm长的鱼！")
-				
-				if caught_fish['rarity'] in ['rare', 'epic', 'legendary']:
-					self.fishing_contest_stats["rare_fish_count"] += 1
-				
-				print(f"钓到了 {display_name}（{fish_length}cm）！售价: {caught_fish['price']}金币")
-				
-				# 显示ASCII鱼类图案
-				print(f"   {caught_fish['ascii_char']}")
-				
-				# 记录钓鱼成功行为
-				self.record_fishing_behavior(f"钓到了{display_name}", caught_fish)
+			# 重置小游戏结果
+			if hasattr(self, 'level') and self.level:
+				self.level.fishing_minigame.reset_result()
+			
+			if caught_item:
+				if caught_item.get('type') == 'cat':
+					# 钓到猫咪了！
+					print(f"🎣✨ 奇迹发生了！你钓到了一只 {caught_item['name']}！")
+					print(f"   {caught_item['ascii_char']} - {caught_item['personality']}")
+					print(f"   稀有度: {caught_item['rarity_name']}")
+					
+					# 添加到聊天面板
+					if hasattr(self, 'chat_panel') and self.chat_panel:
+						self.chat_panel.add_system_message(f"🎣✨ 钓到了一只{caught_item['rarity_name']}猫咪: {caught_item['name']}！")
+						self.chat_panel.add_system_message(f"🐱 {caught_item['personality']}")
+					
+					
+					# 添加猫咪到游戏世界
+					if hasattr(self, 'level') and self.level:
+						new_cat = self.level.cat_manager.add_new_cat_from_fishing(self.rect.center)
+						if new_cat:
+							# 为新猫咪设置特殊属性
+							new_cat.cat_name = caught_item['name']
+							new_cat.cat_personality = caught_item['personality']
+							new_cat.char_color = caught_item['color']
+							print(f"🐱 {caught_item['name']} 已经加入你的农场！")
+							
+							# 添加成功消息
+							if hasattr(self, 'chat_panel') and self.chat_panel:
+								self.chat_panel.add_system_message(f"🏠 {caught_item['name']} 已经在农场安家了！")
+						else:
+							print("❌ 猫咪添加失败")
+							if hasattr(self, 'chat_panel') and self.chat_panel:
+								self.chat_panel.add_system_message("❌ 猫咪添加失败")
+					else:
+						print("⚠️ 无法访问游戏世界，猫咪添加失败")
+					
+					# 显示猫咪鱼获面板
+					if hasattr(self, 'level') and self.level:
+						self.level.catch_result_panel.show_catch_result(caught_item)
+					
+				elif caught_item.get('type') == 'trash':
+					# 钓到垃圾物品了
+					display_name = self.fish_system.get_fish_display_name(caught_item)
+					
+					# 根据物品类型显示不同的信息
+					if caught_item['category'] == 'treasure':
+						print(f"💎 太幸运了！钓到了 {display_name}！")
+						if hasattr(self, 'chat_panel') and self.chat_panel:
+							self.chat_panel.add_system_message(f"💎 太幸运了！钓到了{display_name}！")
+							self.chat_panel.add_system_message(f"💰 价值: {caught_item['value']}金币")
+					elif caught_item['category'] == 'natural':
+						print(f"🌿 钓到了 {display_name}")
+						if hasattr(self, 'chat_panel') and self.chat_panel:
+							self.chat_panel.add_system_message(f"🌿 钓到了{display_name}")
+							if caught_item['value'] > 0:
+								self.chat_panel.add_system_message(f"💰 价值: {caught_item['value']}金币")
+					else:
+						print(f"🗑️ 钓到了 {display_name}...")
+						if hasattr(self, 'chat_panel') and self.chat_panel:
+							self.chat_panel.add_system_message(f"🗑️ 钓到了{display_name}...")
+							if caught_item['value'] < 0:
+								self.chat_panel.add_system_message(f"💸 处理成本: {abs(caught_item['value'])}金币")
+					
+					# 显示ASCII图案
+					print(f"   {caught_item['ascii_char']}")
+					
+					# 直接影响金钱（不存储在库存中）
+					self.money += caught_item['value']
+					
+					# 显示详细描述
+					print(f"   {caught_item['description']}")
+					if hasattr(self, 'chat_panel') and self.chat_panel:
+						self.chat_panel.add_system_message(f"📝 {caught_item['description']}")
+					
+					# 显示物品鱼获面板
+					if hasattr(self, 'level') and self.level:
+						self.level.catch_result_panel.show_catch_result(caught_item)
+					
+				else:
+					# 钓到鱼了
+					self.fish_inventory.append(caught_item)
+					display_name = self.fish_system.get_fish_display_name(caught_item)
+					
+					# 随机生成鱼的长度（基于鱼的类型和品质）
+					base_length = {
+						'carp': 25, 'salmon': 35, 'trout': 20, 'bass': 30,
+						'minnow': 10, 'pike': 45, 'swordfish': 75, 'golden_carp': 60
+					}.get(caught_item['id'], 25)
+					
+					# 根据品质调整长度
+					quality_modifier = {
+						'common': 1.0, 'uncommon': 1.2, 'rare': 1.5, 'epic': 2.0, 'legendary': 3.0
+					}.get(caught_item['rarity'], 1.0)
+					
+					import random
+					fish_length = int(base_length * quality_modifier * random.uniform(0.8, 1.3))
+					caught_item['length'] = fish_length
+					
+					# 更新钓鱼大赛统计
+					if fish_length > self.fishing_contest_stats["max_fish_length"]:
+						self.fishing_contest_stats["max_fish_length"] = fish_length
+						print(f"[钓鱼大赛] 新纪录！钓到了{fish_length}cm长的鱼！")
+					
+					if caught_item['rarity'] in ['rare', 'epic', 'legendary']:
+						self.fishing_contest_stats["rare_fish_count"] += 1
+					
+					print(f"钓到了 {display_name}（{fish_length}cm）！售价: {caught_item['price']}金币")
+					
+					# 显示ASCII鱼类图案
+					print(f"   {caught_item['ascii_char']}")
+					
+					# 显示鱼类描述
+					print(f"   {caught_item['description']}")
+					
+					# 记录钓鱼成功行为
+					if hasattr(self, 'chat_panel') and self.chat_panel:
+						self.chat_panel.add_system_message(f"钓到了{display_name}")
+						self.chat_panel.add_system_message(f"📏 长度: {fish_length}cm")
+						self.chat_panel.add_system_message(f"💰 价值: {caught_item['price']}金币")
+						self.chat_panel.add_system_message(f"📝 {caught_item['description']}")
+					
+					# 显示鱼类鱼获面板
+					if hasattr(self, 'level') and self.level:
+						self.level.catch_result_panel.show_catch_result(caught_item)
 				
 				# 检查任务进度
 				self.check_quest_progress()
 			else:
 				print("没有钓到鱼...")
-				# 记录钓鱼失败行为
-				self.record_fishing_behavior("钓鱼失败，没有钓到鱼")
+				if hasattr(self, 'chat_panel') and self.chat_panel:
+					self.chat_panel.add_system_message("没有钓到鱼...")
 			
-			self.is_fishing = False
+			# 重置钓鱼状态
+			self._reset_fishing_state()
 	
 	def get_total_fish_count(self):
 		"""
@@ -680,6 +954,13 @@ class Player(pygame.sprite.Sprite):
 		if self.chat_panel and self.chat_panel.is_input_focused():
 			return
 
+		# 钓鱼功能 - 在任何状态下都能处理空格键
+		if keys[pygame.K_SPACE] and not self.space_key_pressed:
+			self.space_key_pressed = True
+			self.handle_fishing_input()
+		elif not keys[pygame.K_SPACE]:
+			self.space_key_pressed = False
+
 		if not self.timers['tool use'].active and not self.sleep and not self.is_fishing:
 			# directions 
 			if keys[pygame.K_UP]:
@@ -699,10 +980,6 @@ class Player(pygame.sprite.Sprite):
 				self.status = 'left'
 			else:
 				self.direction.x = 0
-
-			# 钓鱼功能 (替换原来的工具使用)
-			if keys[pygame.K_SPACE]:
-				self.start_fishing()
 
 			# tool use (改为使用其他键，比如F键)
 			if keys[pygame.K_f]:
@@ -817,6 +1094,16 @@ class Player(pygame.sprite.Sprite):
 		self.input()
 		self.get_status()
 		self.update_timers()
+		
+		# 更新钓鱼状态机
+		self.update_fishing_state(dt)
+		
+		# 检查钓鱼小游戏状态
+		if self.is_fishing and hasattr(self, 'level') and self.level:
+			# 如果小游戏结束了，触发finish_fishing
+			if not self.level.fishing_minigame.is_active and self.level.fishing_minigame.get_result():
+				self.finish_fishing()
+		
 		self.get_target_pos()
 
 		self.move(dt)

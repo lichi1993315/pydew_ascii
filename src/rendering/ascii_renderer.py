@@ -122,7 +122,7 @@ class ASCIIRenderer:
 		
 		return any(start <= code_point <= end for start, end in emoji_ranges)
 	
-	def render_ascii(self, surface, char, color, pos, size=None):
+	def render_ascii(self, surface, char, color, pos, size=None, font=None):
 		"""
 		渲染ASCII字符到指定位置
 		智能选择emoji字体或普通字体
@@ -132,9 +132,9 @@ class ASCIIRenderer:
 		
 		# 选择合适的字体
 		if self._is_emoji(char):
-			selected_font = self.emoji_font
+			selected_font = font or self.emoji_font
 		else:
-			selected_font = self.font
+			selected_font = font or self.font
 		
 		try:
 			# 创建文本表面

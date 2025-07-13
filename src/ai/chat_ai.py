@@ -24,14 +24,14 @@ try:
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
-    print("⚠️  anthropic库未安装，将使用模拟回复模式")
+    print("WARNING: anthropic library not installed, using mock reply mode")
 
 try:
     import openai
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
-    print("⚠️  openai库未安装，无法使用Doubao模型")
+    print("WARNING: openai library not installed, Doubao model unavailable")
 
 class ChatAI:
     """
@@ -252,10 +252,10 @@ class ChatAI:
                     api_key=self.claude_api_key,
                     http_client=custom_httpx_client
                 )
-                print("🤖 ChatAI: Claude API客户端初始化成功")
+                print("CHATAI: Claude API client initialized successfully")
                 
             except Exception as e:
-                print(f"🤖 ChatAI: Claude API客户端初始化失败: {e}")
+                print(f"CHATAI: Claude API client initialization failed: {e}")
         
         # 初始化Doubao客户端
         if OPENAI_AVAILABLE and self.doubao_api_key:
@@ -265,13 +265,13 @@ class ChatAI:
                     base_url="https://ark.cn-beijing.volces.com/api/v3",
                     timeout=30.0
                 )
-                print("🤖 ChatAI: Doubao API客户端初始化成功")
+                print("CHATAI: Doubao API client initialized successfully")
                 
             except Exception as e:
-                print(f"🤖 ChatAI: Doubao API客户端初始化失败: {e}")
+                print(f"CHATAI: Doubao API client initialization failed: {e}")
         
         if not self.claude_client and not self.doubao_client:
-            print("🤖 ChatAI: 没有可用的API客户端，使用模拟回复模式")
+            print("CHATAI: No available API clients, using mock reply mode")
     
     def _set_active_model(self, model_type: str):
         """设置当前活跃的模型"""
@@ -280,19 +280,19 @@ class ChatAI:
         if self.model_type == "claude" and self.claude_client:
             self.current_client = self.claude_client
             self.use_api = True
-            print(f"🤖 ChatAI: 切换到Claude模型")
+            print(f"CHATAI: Switched to Claude model")
         elif self.model_type == "doubao" and self.doubao_client:
             self.current_client = self.doubao_client
             self.use_api = True
-            print(f"🤖 ChatAI: 切换到Doubao模型")
+            print(f"CHATAI: Switched to Doubao model")
         else:
             self.current_client = None
             self.use_api = False
-            print(f"🤖 ChatAI: 模型 {model_type} 不可用，使用模拟回复模式")
+            print(f"CHATAI: Model {model_type} unavailable, using mock reply mode")
     
     def switch_model(self, model_type: str):
         """动态切换AI模型"""
-        print(f"🤖 ChatAI: 尝试切换到 {model_type} 模型")
+        print(f"CHATAI: Attempting to switch to {model_type} model")
         self._set_active_model(model_type)
         # 清除缓存以确保使用新模型
         self.response_cache.clear()
@@ -361,7 +361,7 @@ class ChatAI:
                 # 缓存回复
                 self.response_cache[cache_key] = response
             except Exception as e:
-                print(f"🤖 ChatAI: {self.model_type} API调用失败，回退到模拟模式: {e}")
+                print(f"CHATAI: {self.model_type} API call failed, fallback to mock mode: {e}")
                 # 回退到模拟回复
                 response = self._generate_mock_response(npc_id, player_message)
         else:
@@ -441,7 +441,7 @@ class ChatAI:
             return response_text
             
         except Exception as e:
-            print(f"🤖 ChatAI: Claude API调用异常: {e}")
+            print(f"CHATAI: Claude API call exception: {e}")
             raise e
     
     async def _generate_doubao_response(self, npc_id: str, player_message: str, context: Dict = None) -> str:
@@ -508,7 +508,7 @@ class ChatAI:
             return response_text
             
         except Exception as e:
-            print(f"🤖 ChatAI: Doubao API调用异常: {e}")
+            print(f"CHATAI: Doubao API call exception: {e}")
             raise e
     
     def _generate_mock_response(self, npc_id: str, player_message: str) -> str:

@@ -1,6 +1,6 @@
 import pygame
 from ..settings import *
-from pytmx.util_pygame import load_pygame
+from ..core.map_loader import load_pygame
 from ..core.support import *
 from random import choice
 
@@ -79,9 +79,11 @@ class SoilLayer:
 		# 尝试加载音效文件
 		try:
 			if pygame.mixer.get_init():
-				self.hoe_sound = pygame.mixer.Sound('assets/audio/hoe.wav')
+				hoe_path = get_resource_path('assets/audio/hoe.wav')
+				plant_path = get_resource_path('assets/audio/plant.wav')
+				self.hoe_sound = pygame.mixer.Sound(hoe_path)
 				self.hoe_sound.set_volume(0.1)
-				self.plant_sound = pygame.mixer.Sound('assets/audio/plant.wav') 
+				self.plant_sound = pygame.mixer.Sound(plant_path) 
 				self.plant_sound.set_volume(0.2)
 		except (pygame.error, FileNotFoundError) as e:
 			print(f"⚠️ 土壤音效加载失败: {e}")
@@ -92,7 +94,8 @@ class SoilLayer:
 		h_tiles, v_tiles = ground.get_width() // TILE_SIZE, ground.get_height() // TILE_SIZE
 		
 		self.grid = [[[] for col in range(h_tiles)] for row in range(v_tiles)]
-		for x, y, _ in load_pygame('assets/data/map.tmx').get_layer_by_name('Farmable').tiles():
+		map_data = load_pygame('config/map_config.json')
+		for x, y, _ in map_data.get_layer_by_name('Farmable').tiles():
 			self.grid[y][x].append('F')
 
 	def create_hit_rects(self):

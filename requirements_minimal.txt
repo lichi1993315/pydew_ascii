@@ -1,0 +1,10 @@
+# 游戏运行必需的最小依赖
+pygame>=2.5.0
+python-dotenv>=1.0.0
+Pillow>=10.0.0
+typing-extensions>=4.7.0
+
+# AI功能依赖 (可选，如果不需要AI功能可以注释掉)
+# anthropic>=0.30.0
+# openai>=1.30.0
+# httpx>=0.25.0

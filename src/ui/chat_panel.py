@@ -17,6 +17,9 @@ class ChatPanel:
         self.message_callback: Optional[Callable] = None  # 当玩家发送消息时的回调函数
         self.pending_ai_response = False  # 是否在等待AI回复
         
+        # 游戏回调系统
+        self.spawn_cat_callback: Optional[Callable] = None  # 生成猫咪的回调函数
+        
         # 字体管理器
         self.font_manager = FontManager.get_instance()
         self.message_font = self.font_manager.load_chinese_font(16, "chat_message_font")
@@ -548,6 +551,10 @@ class ChatPanel:
         """设置消息回调函数"""
         self.message_callback = callback
     
+    def set_spawn_cat_callback(self, callback: Callable):
+        """设置生成猫咪的回调函数"""
+        self.spawn_cat_callback = callback
+    
     def add_ai_response(self, message: str, sender: str):
         """添加AI回复消息"""
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -631,6 +638,7 @@ class ChatPanel:
             self.add_system_message("/help - 显示此帮助")
             self.add_system_message("/clear - 清除聊天记录")
             self.add_system_message("/history - 显示对话历史统计")
+            self.add_system_message("/spawn - 随机生成一只猫咪")
             self.add_system_message("/test - 添加测试消息以测试滚动")
             self.add_system_message("滚动控制：")
             self.add_system_message("- 鼠标滚轮或↑↓键滚动")
@@ -646,6 +654,25 @@ class ChatPanel:
         elif command == "/history":
             self._show_conversation_history()
             
+        elif command == "/spawn":
+            # 随机生成一只猫咪
+            if self.spawn_cat_callback:
+                try:
+                    new_cat = self.spawn_cat_callback()
+                    if new_cat:
+                        self.add_system_message(f"🐱 成功生成新猫咪: {new_cat.cat_name}")
+                        self.add_system_message(f"   性格: {new_cat.cat_personality}")
+                        self.add_system_message(f"   颜色: {new_cat.skin_color}")
+                        self.add_system_message(f"   表情: {new_cat.ascii_char}")
+                        print(f"[聊天面板] 通过指令生成新猫咪: {new_cat.cat_name}")
+                    else:
+                        self.add_system_message("❌ 生成猫咪失败，请稍后重试")
+                except Exception as e:
+                    self.add_system_message(f"❌ 生成猫咪时发生错误: {e}")
+                    print(f"[聊天面板] 生成猫咪错误: {e}")
+            else:
+                self.add_system_message("❌ 猫咪生成功能未启用")
+        
         elif command == "/test":
             # 添加多条测试消息来测试滚动功能
             test_messages = [

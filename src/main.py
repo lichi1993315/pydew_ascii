@@ -1,6 +1,21 @@
-import pygame
-import sys
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
+import sys
+
+# 设置Windows控制台UTF-8编码，解决emoji字符显示问题
+if os.name == 'nt':  # Windows系统
+    try:
+        # 设置控制台代码页为UTF-8
+        os.system('chcp 65001 > nul')
+        # 设置Python输出编码为UTF-8
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception as e:
+        pass  # 忽略设置失败的情况
+
+import pygame
 from src.settings import *
 from src.core.level import Level
 from src.utils.font_manager import FontManager
@@ -109,6 +124,14 @@ class Game:
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				return False
+			
+			# 优先处理鱼获结果面板输入
+			if self.level and self.level.catch_result_panel.handle_input(event):
+				continue  # 如果鱼获面板处理了输入，跳过其他处理
+			
+			# 优先处理钓鱼小游戏输入
+			if self.level and self.level.fishing_minigame.handle_input(event):
+				continue  # 如果钓鱼小游戏处理了输入，跳过其他处理
 			
 			# 优先处理猫咪详情UI输入
 			if self.level and self.level.cat_info_ui.handle_input(event):

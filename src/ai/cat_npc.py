@@ -3,6 +3,7 @@ import random
 import math
 from ..settings import *
 from ..rendering.ascii_sprites import ASCIINPC
+from ..utils.emoji_colorizer import EmojiColorizer  # 导入emoji着色工具
 
 class CatNPC(ASCIINPC):
     """猫咪NPC类 - 继承自ASCIINPC并添加移动功能"""
@@ -51,15 +52,42 @@ class CatNPC(ASCIINPC):
         self.cat_conversations = {}  # {other_cat_id: [conversation_entries...]}
         
         # ASCII字符设定
-        self.ascii_char = random.choice(['🐈', '🐱', '😺', '😸', '😻', '😽'])  # 随机猫咪字符
-        self.char_color = random.choice([
+        self.ascii_char = random.choice(['🐈', '🐱', '😺', '😸', '😻', '😽', '🐈‍⬛', '🐅', '🦝', '🦊', '🐩', '🐕‍🦺', '🦮','🐉', '🦓','🐖','🐐','🐇','🦘','🦛','🐫','🐂','🦌'])
+        
+        # 猫咪皮肤颜色系统 - 使用EmojiColorizer着色
+        self.skin_colors = [
             (255, 200, 100),  # 橙猫
             (200, 200, 200),  # 灰猫
             (255, 255, 255),  # 白猫
             (100, 100, 100),  # 黑猫
             (150, 100, 50),   # 棕猫
             (255, 150, 150),  # 粉猫
-        ])
+            (255, 220, 177),  # 浅橙色
+            (139, 69, 19),    # 巧克力色
+            (255, 192, 203),  # 粉色
+            (230, 230, 250),  # 薰衣草色
+            (255, 215, 0),    # 金色
+            (128, 128, 128),  # 深灰
+        ]
+        self.skin_color = random.choice(self.skin_colors)  # 随机选择皮肤颜色
+        self.char_color = self.skin_color
+        
+        print(f"[CatNPC] {cat_name} 的皮肤颜色: {self.skin_color}")  # 调试输出
+
+        self.head_emoji_font = None  # 缓存头顶emoji字体
+        self.sprite_emoji_font = None
+        
+        # 着色后的emoji表面缓存
+        self.colored_emoji_cache = {}  # 缓存不同状态的着色emoji表面
+        self._initialize_colored_emojis()  # 初始化着色emoji
+        
+        # 头顶emoji字体缓存
+        
+        
+        # 猫咪心情系统
+        self.mood = "neutral"  # neutral, happy, sad, excited, sleepy, playful
+        self.mood_timer = 0.0
+        self.mood_duration = random.uniform(10.0, 30.0)  # 心情持续时间
         
         # 头顶emoji系统
         self.head_emoji_system = {
@@ -84,6 +112,54 @@ class CatNPC(ASCIINPC):
         
         # 设置初始移动目标
         self._set_random_target()
+    
+    def _initialize_colored_emojis(self):
+        """初始化着色emoji表面缓存"""
+        # 获取字体管理器
+        from ..utils.font_manager import FontManager
+        font_manager = FontManager.get_instance()
+        
+        # 定义所有可能的猫咪状态emoji
+        emoji_states = {
+            'sitting': '🐱',
+            'moving': '🐈',
+            'idle': self.ascii_char,
+            'default': self.ascii_char
+        }
+        
+        # 为每个状态的emoji着色并缓存
+        for state, emoji in emoji_states.items():
+            try:
+                # 创建emoji字体
+                self.sprite_emoji_font = font_manager.load_emoji_font(TILE_SIZE // 4, f"cat_body_{self.cat_name}_{state}")
+                
+                # 使用EmojiColorizer为猫咪着色
+                colored_surface = EmojiColorizer.colorize_emoji(
+                    self.sprite_emoji_font, 
+                    emoji, 
+                    self.skin_color
+                )
+                
+                # 缓存着色后的表面
+                self.colored_emoji_cache[state] = colored_surface
+                
+            except Exception as e:
+                print(f"[CatNPC] {self.cat_name} 预着色失败 ({state}): {e}")
+                # 如果着色失败，存储None，稍后使用回退方法
+                self.colored_emoji_cache[state] = None
+        
+        # 预加载头顶emoji字体
+        try:
+            emoji_size = TILE_SIZE // 6
+            self.head_emoji_font = font_manager.load_emoji_font(emoji_size, f"cat_emoji_{self.cat_name}")
+            print(f"[CatNPC] {self.cat_name} 头顶emoji字体预加载成功")
+        except Exception as e:
+            print(f"[CatNPC] {self.cat_name} 头顶emoji字体预加载失败: {e}")
+            self.head_emoji_font = None
+        
+        # 输出初始化总结
+        cached_states = [state for state, surface in self.colored_emoji_cache.items() if surface is not None]
+        print(f"[CatNPC] {self.cat_name} 初始化完成: {len(cached_states)}/{len(self.colored_emoji_cache)} 状态已缓存")
     
     def _set_random_target(self):
         """设置随机移动目标"""
@@ -199,6 +275,7 @@ class CatNPC(ASCIINPC):
         # 更新对话冷却时间
         if self.conversation_cooldown > 0:
             self.conversation_cooldown -= dt
+        
         
         # 状态切换
         if self.state_timer <= 0:
@@ -377,47 +454,59 @@ class CatNPC(ASCIINPC):
     
     def _update_ascii_display(self):
         """更新ASCII字符显示"""
-        # 根据状态显示不同字符
-        if self.movement_state == "sitting":
-            display_char = "🐱"  # 坐着的猫
-        elif self.movement_state == "moving":
-            # 根据移动方向显示不同字符
-            if abs(self.direction.x) > abs(self.direction.y):
-                display_char = "🐈" if self.direction.x > 0 else "🐈"
-            else:
-                display_char = "🐈" if self.direction.y > 0 else "🐈"
-        else:  # idle
-            display_char = self.ascii_char
+        # # 根据状态确定要使用的emoji状态
+        # if self.movement_state == "sitting":
+        #     emoji_state = "sitting"
+        #     display_char = "🐱"  # 坐着的猫
+        # elif self.movement_state == "moving":
+        #     emoji_state = "moving"
+        #     display_char = "🐈"  # 移动的猫
+        # else:  # idle
+        emoji_state = "idle"
+        display_char = self.ascii_char
         
-        # 更新ASCII渲染 - 直接在image上渲染
+        # 更新ASCII渲染 - 使用缓存的着色结果
         self.image.fill((0, 0, 0, 0))  # 清除
-        from ..rendering.ascii_renderer import ASCIIRenderer
-        renderer = ASCIIRenderer()
         
-        # 使用render_ascii方法直接在image表面上渲染猫咪本体
-        renderer.render_ascii(
-            self.image,      # 目标表面
-            display_char,    # 字符
-            self.char_color, # 颜色
-            (0, 0),         # 位置
-            TILE_SIZE       # 大小
-        )
+        # 尝试使用缓存的着色表面
+        cached_surface = self.colored_emoji_cache.get(emoji_state)
+        
+        if cached_surface is not None:
+            # 使用缓存的着色表面
+            cat_rect = cached_surface.get_rect(center=(TILE_SIZE//2, TILE_SIZE//2))
+            self.image.blit(cached_surface, cat_rect)
+        else:
+            # 如果没有缓存，使用回退方法
+            from ..rendering.ascii_renderer import ASCIIRenderer
+            renderer = ASCIIRenderer()
+            renderer.render_ascii(
+                self.image,      # 目标表面
+                display_char,    # 字符
+                self.skin_color, # 颜色
+                (0, 0),         # 位置
+                TILE_SIZE       # 大小
+            )
         
         # 渲染头顶emoji（如果有的话）
         if self.head_emoji_system['current_emoji']:
             emoji = self.head_emoji_system['current_emoji']
-            emoji_size = TILE_SIZE // 3  # emoji比猫咪小，使用1/3大小
+            emoji_size = TILE_SIZE // 6
+            
             # 将emoji放在猫咪上方，但确保在image范围内
             emoji_pos = (TILE_SIZE // 2 - emoji_size // 2, 0)  # 水平居中，垂直在最上方
             
-            # 渲染emoji
-            renderer.render_ascii(
-                self.image,         # 目标表面
-                emoji,              # emoji字符
-                (255, 255, 255),    # 白色
-                emoji_pos,          # 位置（猫咪上方）
-                emoji_size          # 大小
-            )
+            # 使用缓存的字体渲染emoji
+            if self.head_emoji_font:
+                from ..rendering.ascii_renderer import ASCIIRenderer
+                renderer = ASCIIRenderer()
+                renderer.render_ascii(
+                    self.image,         # 目标表面
+                    emoji,              # emoji字符
+                    (255, 255, 255),    # 白色
+                    emoji_pos,          # 位置（猫咪上方）
+                    emoji_size,         # 大小
+                    self.head_emoji_font  # 使用缓存的字体
+                )
     
     def get_interaction_text(self):
         """获取交互提示文本"""
@@ -431,7 +520,7 @@ class CatNPC(ASCIINPC):
             "state": self.movement_state,
             "position": self.rect.center,
             "ascii_char": self.ascii_char,
-            "color": self.char_color,
+            "color": self.skin_color,  # 使用新的skin_color属性
             "head_emoji": self.head_emoji_system['current_emoji'],
             "emoji_timer": self.head_emoji_system['emoji_timer'],
             "is_chatting": bool(self.current_conversation_partner)
@@ -703,113 +792,167 @@ class CatManager:
             "淘气捣蛋，喜欢恶作剧"
         ]
     
-    def create_cats(self, all_sprites, collision_sprites, npc_sprites, npc_manager, player_pos=None):
-        """创建所有猫咪NPC"""
+    def create_cats(self, all_sprites, collision_sprites, npc_sprites, npc_manager, player_pos=None, initial_cats=0):
+        """创建猫咪NPC
+        
+        Args:
+            initial_cats: 初始创建的猫咪数量，默认为0（通过钓鱼获得）
+        """
+        # 存储游戏对象引用，用于后续动态添加猫咪
+        self.all_sprites = all_sprites
+        self.collision_sprites = collision_sprites
+        self.npc_sprites = npc_sprites
+        self.npc_manager = npc_manager
         
         # 如果没有提供玩家位置，使用默认中心位置
         if player_pos is None:
             player_pos = (800, 800)  # 地图中心附近
         
-        print(f"[CatManager] 开始创建猫咪，玩家位置: {player_pos}")
+        self.last_player_pos = player_pos
         
-        for i in range(10):
-            cat_name = self.cat_names[i]
-            cat_personality = self.cat_personalities[i]
-            
-            # 智能选择spawn位置
-            spawn_pos = self._find_valid_spawn_position(
-                player_pos, collision_sprites, attempt_id=i
-            )
-            
-            if spawn_pos is None:
-                print(f"[CatManager] 警告: 无法为猫咪 {cat_name} 找到有效位置，跳过创建")
-                continue
-            
-            # 创建猫咪NPC ID
-            cat_id = f"cat_{i+1:02d}"
-            
-            # 创建猫咪NPC
-            cat = CatNPC(
-                pos=spawn_pos,
-                npc_id=cat_id,
-                npc_manager=npc_manager,
-                groups=[all_sprites, npc_sprites],  # 不加入collision_sprites，猫咪可以重叠
-                cat_name=cat_name,
-                cat_personality=cat_personality,
-                collision_sprites=collision_sprites  # 传递碰撞精灵组
-            )
-            
-            # 给猫咪设置管理器引用，用于找到其他猫咪
-            cat.cat_manager = self
-            
-            self.cats.append(cat)
-            print(f"[CatManager] 创建猫咪: {cat_name} ({cat_id}) 位置: {spawn_pos}")
+        print(f"[CatManager] 初始化猫咪管理器，初始猫咪数量: {initial_cats}")
         
-        print(f"[CatManager] 成功创建 {len(self.cats)} 只猫咪")
+        # 创建指定数量的初始猫咪
+        for i in range(initial_cats):
+            self._create_single_cat(player_pos, i)
+        
+        print(f"[CatManager] 成功创建 {len(self.cats)} 只初始猫咪")
+    
+    def _create_single_cat(self, player_pos, cat_index=None):
+        """创建单只猫咪"""
+        if cat_index is None:
+            cat_index = len(self.cats)
+        
+        # 确保不超过可用名称数量
+        if cat_index >= len(self.cat_names):
+            cat_index = cat_index % len(self.cat_names)
+        
+        cat_name = self.cat_names[cat_index]
+        cat_personality = self.cat_personalities[cat_index]
+        
+        # 智能选择spawn位置
+        spawn_pos = self._find_valid_spawn_position(
+            player_pos, self.collision_sprites, attempt_id=cat_index
+        )
+        
+        if spawn_pos is None:
+            print(f"[CatManager] 警告: 无法为猫咪 {cat_name} 找到有效位置，跳过创建")
+            return None
+        
+        # 创建猫咪NPC ID
+        cat_id = f"cat_{len(self.cats)+1:02d}"
+        
+        # 创建猫咪NPC
+        cat = CatNPC(
+            pos=spawn_pos,
+            npc_id=cat_id,
+            npc_manager=self.npc_manager,
+            groups=[self.all_sprites, self.npc_sprites],  # 不加入collision_sprites，猫咪可以重叠
+            cat_name=cat_name,
+            cat_personality=cat_personality,
+            collision_sprites=self.collision_sprites  # 传递碰撞精灵组
+        )
+        
+        # 给猫咪设置管理器引用，用于找到其他猫咪
+        cat.cat_manager = self
+        
+        self.cats.append(cat)
+        print(f"[CatManager] 创建猫咪: {cat_name} ({cat_id}) 位置: {spawn_pos}")
+        
+        return cat
+    
+    def add_new_cat_from_fishing(self, player_pos):
+        """从钓鱼获得新猫咪"""
+        print(f"[CatManager] 🎣 从钓鱼中获得新猫咪！")
+        
+        # 更新玩家位置
+        self.last_player_pos = player_pos
+        
+        # 创建新猫咪
+        new_cat = self._create_single_cat(player_pos)
+        
+        if new_cat:
+            print(f"[CatManager] 🐱 新猫咪 {new_cat.cat_name} 加入了游戏世界！")
+            
+            # 让新猫咪显示开心的emoji
+            new_cat.force_head_emoji('😍', 8.0)  # 显示8秒开心表情
+            
+            return new_cat
+        else:
+            print(f"[CatManager] ERROR: Failed to create new cat")
+            return None
+    
+    def get_cat_count(self):
+        """获取当前猫咪数量"""
+        return len(self.cats)
     
     def _find_valid_spawn_position(self, player_pos, collision_sprites, attempt_id=0):
         """寻找有效的spawn位置"""
         player_x, player_y = player_pos
         
         # 定义搜索参数
-        min_distance_from_player = 100  # 距离玩家最小距离
-        max_distance_from_player = 400  # 距离玩家最大距离
-        max_attempts = 50  # 最大尝试次数
+        min_distance_from_player = 50  # 距离玩家最小距离
+        max_distance_from_player = 150  # 距离玩家最大距离
+        max_attempts = 100  # 增加尝试次数
         
-        # 预定义的候选区域（相对于玩家位置的偏移）
-        candidate_offsets = [
-            # 四个主要方向
-            (200, 0), (-200, 0), (0, 200), (0, -200),
-            # 对角线方向
-            (150, 150), (-150, 150), (150, -150), (-150, -150),
-            # 更远的位置
-            (300, 100), (-300, 100), (100, 300), (-100, 300),
-            (300, -100), (-300, -100), (100, -300), (-100, -300),
-            # 额外的随机方向
-            (250, 50), (-250, 50), (50, 250), (-50, 250),
+        # 按照距离从近到远的顺序定义搜索圈
+        search_rings = [
+            (50, 80),   # 第一圈:50-80
+            (80, 100),  # 第二圈:80-100
+            (100, 120), # 第三圈:100-120
+            (120, 150)  # 第四圈:120-150
         ]
         
-        # 首先尝试预定义的候选位置
-        for i, (dx, dy) in enumerate(candidate_offsets):
-            if i > attempt_id * 3:  # 为每只猫使用不同的起始位置
-                break
+        # 在每个搜索圈内尝试多个角度
+        angles = [i * (math.pi/8) for i in range(16)]  # 将圆分成16等份
+        
+        # 按圈搜索
+        for min_r, max_r in search_rings:
+            # 在当前圈内尝试所有角度
+            for angle in angles:
+                # 在min_r和max_r之间随机选择距离
+                distance = random.uniform(min_r, max_r)
                 
-            candidate_x = player_x + dx
-            candidate_y = player_y + dy
-            
-            # 添加一些随机偏移
-            candidate_x += random.randint(-30, 30)
-            candidate_y += random.randint(-30, 30)
-            
-            if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
-                return (candidate_x, candidate_y)
+                # 计算坐标
+                candidate_x = player_x + math.cos(angle) * distance
+                candidate_y = player_y + math.sin(angle) * distance
+                
+                # 添加小范围随机偏移,避免猫咪位置过于规则
+                candidate_x += random.randint(-10, 10)
+                candidate_y += random.randint(-10, 10)
+                
+                if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
+                    return (candidate_x, candidate_y)
         
-        # 如果预定义位置都不行，随机搜索
-        for attempt in range(max_attempts):
-            # 在玩家周围的环形区域内随机选择
-            angle = random.uniform(0, 2 * math.pi)
-            distance = random.uniform(min_distance_from_player, max_distance_from_player)
-            
-            candidate_x = player_x + math.cos(angle) * distance
-            candidate_y = player_y + math.sin(angle) * distance
-            
-            if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
-                return (candidate_x, candidate_y)
+        # 如果上述方法都失败了,进行网格搜索
+        grid_size = 20  # 20x20的网格
+        for x_offset in range(-max_distance_from_player, max_distance_from_player+1, grid_size):
+            for y_offset in range(-max_distance_from_player, max_distance_from_player+1, grid_size):
+                candidate_x = player_x + x_offset
+                candidate_y = player_y + y_offset
+                
+                # 检查是否在最大范围内
+                distance = math.sqrt(x_offset**2 + y_offset**2)
+                if min_distance_from_player <= distance <= max_distance_from_player:
+                    if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
+                        return (candidate_x, candidate_y)
         
-        # 如果还是找不到，尝试更大的搜索范围
-        print(f"[CatManager] 扩大搜索范围寻找spawn位置...")
-        for attempt in range(max_attempts):
-            angle = random.uniform(0, 2 * math.pi)
-            distance = random.uniform(max_distance_from_player, max_distance_from_player * 2)
-            
-            candidate_x = player_x + math.cos(angle) * distance
-            candidate_y = player_y + math.sin(angle) * distance
-            
-            if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, collision_sprites):
-                return (candidate_x, candidate_y)
+        # 如果还是找不到,放宽限制重试一次
+        print("[CatManager] 正在放宽限制重新搜索...")
+        for angle in range(0, 360, 10):  # 每10度搜索一次
+            rad = math.radians(angle)
+            for dist in range(50, 151, 10):  # 每10单位距离搜索一次
+                candidate_x = player_x + math.cos(rad) * dist
+                candidate_y = player_y + math.sin(rad) * dist
+                
+                # 临时放宽碰撞检测
+                if self._is_spawn_position_valid(candidate_x, candidate_y, player_pos, None):
+                    print(f"[CatManager] 在放宽限制后找到位置: ({int(candidate_x)}, {int(candidate_y)})")
+                    return (candidate_x, candidate_y)
         
-        print(f"[CatManager] 警告: 无法找到有效的spawn位置")
-        return None
+        # 如果实在找不到,返回一个固定位置
+        print("[CatManager] 警告: 无法找到理想位置,使用默认位置")
+        return (player_x - 100, player_y - 100)
     
     def _is_spawn_position_valid(self, x, y, player_pos, collision_sprites):
         """检查spawn位置是否有效"""

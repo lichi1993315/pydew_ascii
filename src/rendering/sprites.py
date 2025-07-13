@@ -86,10 +86,11 @@ class Tree(Generic):
 		# 尝试加载音效文件
 		try:
 			if pygame.mixer.get_init():
-				self.axe_sound = pygame.mixer.Sound('assets/audio/axe.mp3')
+				axe_path = get_resource_path('assets/audio/axe.mp3')
+				self.axe_sound = pygame.mixer.Sound(axe_path)
 		except (pygame.error, FileNotFoundError) as e:
-			print(f"⚠️ 斧头音效加载失败: {e}")
-			print("游戏将在无音效模式下运行")
+			print(f"WARNING: Axe audio loading failed: {e}")
+			print("Game will run without sound effects")
 
 	def damage(self):
 		

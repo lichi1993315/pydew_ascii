@@ -1,6 +1,5 @@
 # 游戏核心依赖
 pygame>=2.5.0
-pytmx>=3.32
 
 # AI功能依赖 (可选)
 anthropic>=0.30.0

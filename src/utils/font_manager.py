@@ -1,5 +1,7 @@
 import os
+import sys
 import pygame
+from ..core.support import get_resource_path
 
 class FontManager:
 	"""
@@ -31,7 +33,7 @@ class FontManager:
 		if font_key in self._fonts:
 			return self._fonts[font_key]
 		
-		font_path = 'assets/fonts/AlimamaShuHeiTi-Bold.ttf'
+		font_path = get_resource_path('assets/fonts/AlimamaShuHeiTi-Bold.ttf')
 		font_loaded = False
 		font = None
 		

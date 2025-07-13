@@ -3,7 +3,7 @@ from src.settings import *
 from .player import Player
 from src.ui.overlay import Overlay
 from src.rendering.ascii_sprites import ASCIIGeneric, ASCIIWater, ASCIIWildFlower, ASCIITree, ASCIIInteraction, ASCIIParticle, ASCIINPC
-from pytmx.util_pygame import load_pygame
+from .map_loader import load_pygame, MapObjectLayer
 from src.core.support import *
 from src.utils.transition import Transition
 from src.systems.ascii_soil import ASCIISoilLayer
@@ -17,6 +17,8 @@ from src.ui.chat_panel import ChatPanel  # 添加聊天面板导入
 from src.ai.chat_ai import get_chat_ai  # 添加聊天AI导入
 from src.ai.cat_npc import CatManager  # 添加猫咪管理器导入
 from src.ui.cat_info_ui import CatInfoUI  # 添加猫咪详情UI导入
+from src.ui.fishing_minigame import FishingMinigame  # 添加钓鱼小游戏导入
+from src.ui.catch_result_panel import CatchResultPanel  # 添加鱼获面板导入
 from src.utils.font_manager import FontManager
 
 class Level:
@@ -55,6 +57,7 @@ class Level:
 		self.chat_ai = get_chat_ai()
 		self.chat_panel.set_message_callback(self.handle_player_chat_message)
 		self.chat_panel.set_chat_ai_instance(self.chat_ai)  # 设置AI实例引用
+		self.chat_panel.set_spawn_cat_callback(self.spawn_cat_from_chat)  # 设置猫咪生成回调
 		self.pending_npc_response = None  # 待处理的NPC回复
 		
 		# 猫咪管理器
@@ -62,6 +65,12 @@ class Level:
 		
 		# 猫咪详情UI
 		self.cat_info_ui = CatInfoUI(SCREEN_WIDTH, SCREEN_HEIGHT)
+		
+		# 钓鱼小游戏
+		self.fishing_minigame = FishingMinigame(SCREEN_WIDTH, SCREEN_HEIGHT)
+		
+		# 鱼获结果面板
+		self.catch_result_panel = CatchResultPanel(SCREEN_WIDTH, SCREEN_HEIGHT)
 		
 		self.setup()
 		
@@ -92,9 +101,11 @@ class Level:
 		# 尝试加载音效文件
 		try:
 			if pygame.mixer.get_init():
-				self.success = pygame.mixer.Sound('assets/audio/success.wav')  # 成功音效
+				success_path = get_resource_path('assets/audio/success.wav')
+				music_path = get_resource_path('assets/audio/music.mp3')
+				self.success = pygame.mixer.Sound(success_path)  # 成功音效
 				self.success.set_volume(0.3)
-				self.music = pygame.mixer.Sound('assets/audio/music.mp3')  # 背景音乐
+				self.music = pygame.mixer.Sound(music_path)  # 背景音乐
 				self.music.play(loops = -1)  # 循环播放
 		except (pygame.error, FileNotFoundError) as e:
 			print(f"⚠️ 关卡音效加载失败: {e}")
@@ -106,7 +117,7 @@ class Level:
 		从TMX文件加载地图数据并创建相应的游戏对象
 		全部使用ASCII模式渲染
 		"""
-		tmx_data = load_pygame('assets/data/map.tmx')  # 加载TMX地图文件
+		tmx_data = load_pygame('config/map_config.json')  # 加载JSON地图文件
 
 		# 房屋地板和家具（底层）
 		for layer in ['HouseFloor', 'HouseFurnitureBottom']:
@@ -120,31 +131,57 @@ class Level:
 
 		# 栅栏
 		for x, y, surf in tmx_data.get_layer_by_name('Fence').tiles():
-			ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'fence', [self.all_sprites, self.collision_sprites])
+			ASCIIGeneric((x * TILE_SIZE,y * TILE_SIZE), 'fence', [self.all_sprites])
 
-		# 水效果
+		# 水效果 (水有碰撞)
 		for x, y, surf in tmx_data.get_layer_by_name('Water').tiles():
 			ASCIIWater((x * TILE_SIZE,y * TILE_SIZE), [self.all_sprites, self.water_sprites])
+			# 给水添加碰撞
+			ASCIIGeneric((x * TILE_SIZE, y * TILE_SIZE), 'water', [self.collision_sprites])
+		
+		# 小径
+		for x, y, surf in tmx_data.get_layer_by_name('Path').tiles():
+			ASCIIGeneric((x * TILE_SIZE, y * TILE_SIZE), 'dirt', [self.all_sprites], z=LAYERS['ground'])
+		
+		# 海滩
+		for x, y, surf in tmx_data.get_layer_by_name('Beach').tiles():
+			ASCIIGeneric((x * TILE_SIZE, y * TILE_SIZE), 'sand', [self.all_sprites], z=LAYERS['ground'])
 
 		# 树木
-		for obj in tmx_data.get_layer_by_name('Trees'):
+		tree_layer = MapObjectLayer(tmx_data.config, 'Trees')
+		for obj in tree_layer:
 			ASCIITree(
 				pos = (obj.x, obj.y), 
-				groups = [self.all_sprites, self.collision_sprites, self.tree_sprites], 
+				groups = [self.all_sprites, self.tree_sprites], 
 				name = obj.name,
 				player_add = self.player_add)
 
-		# 野花装饰
-		for obj in tmx_data.get_layer_by_name('Decoration'):
-			ASCIIWildFlower((obj.x, obj.y), [self.all_sprites, self.collision_sprites])
+		# 装饰物
+		decoration_layer = MapObjectLayer(tmx_data.config, 'Decoration')
+		for obj in decoration_layer:
+			decoration_type = obj.name.lower()
+			if decoration_type == 'flower':
+				ASCIIWildFlower((obj.x, obj.y), [self.all_sprites])
+			elif decoration_type == 'grass':
+				ASCIIGeneric((obj.x, obj.y), 'grass', [self.all_sprites], z=LAYERS['main'])
+			elif decoration_type == 'bush':
+				ASCIIGeneric((obj.x, obj.y), 'bush', [self.all_sprites], z=LAYERS['main'])
+			elif decoration_type == 'rock':
+				ASCIIGeneric((obj.x, obj.y), 'rock', [self.all_sprites], z=LAYERS['main'])
+			elif decoration_type == 'mushroom':
+				ASCIIGeneric((obj.x, obj.y), 'mushroom', [self.all_sprites], z=LAYERS['main'])
+			else:
+				# 默认草地装饰
+				ASCIIGeneric((obj.x, obj.y), 'grass', [self.all_sprites], z=LAYERS['main'])
 
 		# 碰撞瓦片
 		for x, y, surf in tmx_data.get_layer_by_name('Collision').tiles():
 			ASCIIGeneric((x * TILE_SIZE, y * TILE_SIZE), 'stone', self.collision_sprites)
 
 		# 玩家和交互对象
-		for obj in tmx_data.get_layer_by_name('Player'):
-			if obj.name == 'Start':  # 玩家起始位置
+		player_layer = MapObjectLayer(tmx_data.config, 'Player')
+		for obj in player_layer:
+			if obj.name == 'start':  # 玩家起始位置
 				self.player = Player(
 					pos = (obj.x,obj.y), 
 					group = self.all_sprites, 
@@ -158,6 +195,9 @@ class Level:
 				
 				# 设置水精灵组，用于钓鱼功能
 				self.player.water_sprites = self.water_sprites
+				
+				# 设置level引用，用于猫咪管理
+				self.player.level = self
 			
 			if obj.name == 'Bed':  # 床（睡觉交互）
 				ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
@@ -211,9 +251,10 @@ class Level:
 			self.collision_sprites, 
 			self.npc_sprites, 
 			self.npc_manager,
-			player_pos=player_pos
+			player_pos=player_pos,
+			initial_cats=0  # 初始无猫咪，需要通过钓鱼获得
 		)
-		print(f"[Level] 创建了 {len(self.cat_manager.cats)} 只猫咪NPC")
+		print(f"[Level] 初始化猫咪管理器，初始猫咪数量: {len(self.cat_manager.cats)}")
 		
 		# 注册猫咪NPCs到NPC管理器
 		self.npc_manager.register_cat_npcs(self.cat_manager)
@@ -555,9 +596,159 @@ class Level:
 		# 猫咪详情UI渲染
 		self.cat_info_ui.render(self.display_surface)
 
+		# 钓鱼小游戏更新和渲染
+		self.fishing_minigame.update(dt)
+		self.fishing_minigame.render(self.display_surface)
+		
+		# 钓鱼状态UI显示
+		self.render_fishing_state_ui()
+		
+		# 渲染鱼饵
+		self.render_bait()
+		
+		# 鱼获结果面板更新和渲染
+		self.catch_result_panel.update(dt)
+		self.catch_result_panel.render(self.display_surface)
+
 		# 过渡动画
 		if self.player.sleep:
 			self.transition.play()  # 如果玩家睡觉，播放过渡动画
+	
+	def render_fishing_state_ui(self):
+		"""渲染钓鱼状态UI"""
+		if not self.player.is_fishing or self.fishing_minigame.is_active:
+			return
+		
+		# 获取钓鱼状态信息
+		state = self.player.fishing_state
+		
+		# 定义状态文本和颜色
+		state_texts = {
+			"casting": ("🎣 正在出杆...", (255, 255, 100)),
+			"waiting": ("🎣 等待鱼上钩...", (100, 255, 100)),  
+			"fish_hooked": ("🎣 鱼上钩了！快按空格键！", (255, 100, 100))
+		}
+		
+		if state not in state_texts:
+			return
+			
+		text, color = state_texts[state]
+		
+		# 添加额外信息
+		if state == "waiting" and hasattr(self.player, 'fishing_timer'):
+			remaining_time = max(0, self.player.fishing_timer)
+			text += f" ({remaining_time:.1f}s)"
+		elif state == "fish_hooked" and hasattr(self.player, 'bait_shake_timer'):
+			shake_time = self.player.bait_shake_timer
+			text += f" (已晃动 {shake_time:.1f}s)"
+		
+		# 渲染文本
+		font_manager = FontManager.get_instance()
+		font = font_manager.load_chinese_font(32, "fishing_state_font")
+		text_surface = font.render(text, True, color)
+		text_rect = text_surface.get_rect(center=(SCREEN_WIDTH//2, 100))
+		
+		# 绘制半透明背景
+		bg_rect = text_rect.inflate(20, 10)
+		bg_surface = pygame.Surface((bg_rect.width, bg_rect.height))
+		bg_surface.set_alpha(128)
+		bg_surface.fill((0, 0, 0))
+		self.display_surface.blit(bg_surface, bg_rect)
+		
+		# 绘制文本
+		self.display_surface.blit(text_surface, text_rect)
+		
+		# 添加操作提示
+		hint_text = ""
+		if state == "waiting":
+			hint_text = "按空格键可以提前收杆"
+		elif state == "fish_hooked":
+			hint_text = "快按空格键收杆，否则鱼会跑掉！"
+		
+		if hint_text:
+			hint_font = font_manager.load_chinese_font(24, "fishing_hint_font")
+			hint_surface = hint_font.render(hint_text, True, (200, 200, 200))
+			hint_rect = hint_surface.get_rect(center=(SCREEN_WIDTH//2, 140))
+			self.display_surface.blit(hint_surface, hint_rect)
+	
+	def render_bait(self):
+		"""渲染鱼饵emoji"""
+		if not self.player.is_fishing or not self.player.bait_position:
+			return
+		
+		# 只在casting、waiting、fish_hooked状态时显示鱼饵
+		if self.player.fishing_state not in ["casting", "waiting", "fish_hooked"]:
+			return
+		
+		# 获取鱼饵位置
+		bait_x, bait_y = self.player.bait_position
+		
+		# 获取摄像机偏移量（与精灵渲染保持一致）
+		camera_offset = self.all_sprites.offset
+		screen_x = bait_x - camera_offset.x
+		screen_y = bait_y - camera_offset.y
+		
+		# 检查是否在屏幕范围内
+		if (screen_x < -50 or screen_x > SCREEN_WIDTH + 50 or 
+			screen_y < -50 or screen_y > SCREEN_HEIGHT + 50):
+			return
+		
+		# 获取字体
+		font_manager = FontManager.get_instance()
+		font = font_manager.load_emoji_font(12, "bait_font")
+		
+		# 根据状态选择不同的显示效果
+		if self.player.fishing_state == "casting":
+			# 出杆阶段，鱼饵稍微透明
+			bait_text = "🌰"
+			alpha = 150
+		elif self.player.fishing_state == "waiting":
+			# 等待阶段，鱼饵正常显示
+			bait_text = "🌰"
+			alpha = 255
+		elif self.player.fishing_state == "fish_hooked":
+			# 鱼上钩阶段，鱼饵晃动效果
+			import math
+			shake_offset = int(math.sin(self.player.bait_shake_timer * 10) * 3)
+			screen_x += shake_offset
+			screen_y += shake_offset
+			bait_text = "🌰"
+			alpha = 255
+		
+		# 渲染鱼饵 - 如果emoji渲染失败，使用简单字符
+		try:
+			bait_surface = font.render(bait_text, True, (255, 255, 255))
+		except:
+			# 如果emoji渲染失败，使用简单字符
+			bait_text = "B"  # B代表Bait
+			bait_surface = font.render(bait_text, True, (255, 255, 0))  # 黄色
+		
+		if alpha < 255:
+			bait_surface.set_alpha(alpha)
+		
+		# 居中显示
+		bait_rect = bait_surface.get_rect(center=(screen_x, screen_y))
+		self.display_surface.blit(bait_surface, bait_rect)
+
+	def spawn_cat_from_chat(self):
+		"""
+		从聊天面板生成猫咪的回调函数
+		"""
+		print("[Level] 从聊天面板生成猫咪")
+		# 获取玩家位置
+		player_pos = self.player.rect.center
+		
+		# 使用cat_manager的add_new_cat_from_fishing方法来生成猫咪
+		new_cat = self.cat_manager.add_new_cat_from_fishing(player_pos)
+		
+		if new_cat:
+			# 注册猫咪NPCs到NPC管理器
+			self.npc_manager.register_cat_npcs(self.cat_manager)
+			print(f"[Level] 成功从聊天面板生成猫咪: {new_cat.cat_name}")
+			return new_cat
+		else:
+			print("[Level] 从聊天面板生成猫咪失败")
+			return None
 
 class CameraGroup(pygame.sprite.Group):
 	"""
