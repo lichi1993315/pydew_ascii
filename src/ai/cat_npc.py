@@ -4,6 +4,7 @@ import math
 from ..settings import *
 from ..rendering.ascii_sprites import ASCIINPC
 from ..utils.emoji_colorizer import EmojiColorizer  # 导入emoji着色工具
+from ..systems.cat_event_system import CatEventSystem  # 导入事件系统
 
 class CatNPC(ASCIINPC):
     """猫咪NPC类 - 继承自ASCIINPC并添加移动功能"""
@@ -791,6 +792,12 @@ class CatManager:
             "胆小害羞，容易受到惊吓",
             "淘气捣蛋，喜欢恶作剧"
         ]
+        
+        # 初始化事件系统
+        self.event_system = CatEventSystem()
+        self.event_check_timer = 0
+        self.event_check_interval = 1.0  # 每秒检查一次事件
+        self.event_notification_manager = None  # 将在level中设置
     
     def create_cats(self, all_sprites, collision_sprites, npc_sprites, npc_manager, player_pos=None, initial_cats=0):
         """创建猫咪NPC
@@ -1039,3 +1046,112 @@ class CatManager:
                 nearest_cat = cat
         
         return nearest_cat, min_distance if nearest_cat else None
+    
+    def update(self, dt):
+        """更新猫咪管理器，包括事件系统检查"""
+        # 更新事件检查计时器
+        self.event_check_timer += dt
+        
+        if self.event_check_timer >= self.event_check_interval:
+            self.event_check_timer = 0
+            self._check_cat_events()
+    
+    def _check_cat_events(self):
+        """检查猫咪事件"""
+        if len(self.cats) < 2:
+            return  # 需要至少2只猫才能触发事件
+        
+        # 找到聚集在一起的猫咪群组
+        cat_groups = self._find_nearby_cat_groups()
+        
+        for group in cat_groups:
+            if len(group) >= 2:
+                # 准备事件参与者数据
+                nearby_cats = []
+                for cat in group:
+                    cat_data = {
+                        'id': f"cat_{cat.cat_name}",
+                        'name': cat.cat_name,
+                        'personality': cat.cat_personality,
+                        'position': cat.rect.center
+                    }
+                    nearby_cats.append(cat_data)
+                
+                # 检查事件触发
+                event_result = self.event_system.check_event_trigger(nearby_cats)
+                
+                if event_result and event_result.success:
+                    self._handle_event_result(event_result)
+    
+    def _find_nearby_cat_groups(self):
+        """找到附近的猫咪群组"""
+        groups = []
+        processed_cats = set()
+        
+        for cat in self.cats:
+            if cat in processed_cats:
+                continue
+            
+            # 找到这只猫附近的所有猫咪
+            group = [cat]
+            processed_cats.add(cat)
+            
+            for other_cat in self.cats:
+                if other_cat in processed_cats:
+                    continue
+                
+                distance = math.sqrt(
+                    (cat.rect.centerx - other_cat.rect.centerx) ** 2 +
+                    (cat.rect.centery - other_cat.rect.centery) ** 2
+                )
+                
+                if distance <= self.event_system.proximity_threshold:
+                    group.append(other_cat)
+                    processed_cats.add(other_cat)
+            
+            if len(group) >= 2:
+                groups.append(group)
+        
+        return groups
+    
+    def _handle_event_result(self, event_result):
+        """处理事件结果"""
+        # 显示事件通知
+        if self.event_notification_manager:
+            self.event_notification_manager.add_event_notification(event_result.message)
+        
+        # 显示关系变化通知
+        for relationship_key, changes in event_result.relationship_changes.items():
+            if self.event_notification_manager:
+                cat_ids = relationship_key.split('-')
+                if len(cat_ids) == 2:
+                    cat1_name = cat_ids[0].replace('cat_', '')
+                    cat2_name = cat_ids[1].replace('cat_', '')
+                    self.event_notification_manager.add_relationship_notification(
+                        cat1_name, cat2_name, changes
+                    )
+        
+        # 打印调试信息
+        print(f"[CatManager] 触发事件: {event_result.message}")
+        for participant in event_result.participants:
+            print(f"[CatManager] 参与者: {participant}")
+    
+    def set_event_notification_manager(self, notification_manager):
+        """设置事件通知管理器"""
+        self.event_notification_manager = notification_manager
+    
+    def get_relationship_summary(self, cat1_name, cat2_name):
+        """获取两只猫的关系摘要"""
+        cat1_id = f"cat_{cat1_name}"
+        cat2_id = f"cat_{cat2_name}"
+        return self.event_system.get_relationship_summary(cat1_id, cat2_id)
+    
+    def get_cat_compatibility(self, cat1_name, cat2_name):
+        """获取两只猫的兼容性分数"""
+        cat1_id = f"cat_{cat1_name}"
+        cat2_id = f"cat_{cat2_name}"
+        return self.event_system.get_cat_compatibility(cat1_id, cat2_id)
+    
+    def debug_print_relationships(self):
+        """调试：打印所有关系"""
+        self.event_system.debug_print_relationships()

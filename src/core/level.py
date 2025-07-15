@@ -19,6 +19,7 @@ from src.ai.cat_npc import CatManager  # 添加猫咪管理器导入
 from src.ui.cat_info_ui import CatInfoUI  # 添加猫咪详情UI导入
 from src.ui.fishing_minigame import FishingMinigame  # 添加钓鱼小游戏导入
 from src.ui.catch_result_panel import CatchResultPanel  # 添加鱼获面板导入
+from src.ui.event_notification import EventNotificationManager  # 添加事件通知管理器导入
 from src.utils.font_manager import FontManager
 
 class Level:
@@ -71,6 +72,9 @@ class Level:
 		
 		# 鱼获结果面板
 		self.catch_result_panel = CatchResultPanel(SCREEN_WIDTH, SCREEN_HEIGHT)
+		
+		# 事件通知管理器
+		self.event_notification_manager = EventNotificationManager()
 		
 		self.setup()
 		
@@ -254,6 +258,9 @@ class Level:
 		
 		# 创建NPC精灵
 		self.create_npcs()
+		
+		# 设置事件通知管理器连接
+		self.cat_manager.set_event_notification_manager(self.event_notification_manager)
 
 	def create_npcs(self):
 		"""创建NPC精灵"""
@@ -513,12 +520,18 @@ class Level:
 						# 在主线程中处理回复（替换思考消息）
 						self.pending_npc_response = (npc_data.name, response, True)  # 第三个参数表示替换思考消息
 						
-						loop.close()
-						
 					except Exception as e:
 						print(f"[聊天AI] 生成回复失败: {e}")
-						# 添加错误回复
+						import traceback
+						traceback.print_exc()
+						# 添加错误回复，确保状态被重置
 						self.pending_npc_response = (npc_data.name, "抱歉，我没听清楚你在说什么...", True)
+					finally:
+						# 确保事件循环被关闭
+						try:
+							loop.close()
+						except:
+							pass
 				
 				# 启动线程
 				response_thread = threading.Thread(target=generate_response)
@@ -530,6 +543,11 @@ class Level:
 			# 没有附近的NPC，添加系统消息
 			print("[Level] 没有找到附近的NPC")
 			self.chat_panel.add_system_message("附近没有人能听到你的话...")
+			# 重置AI回复状态，因为没有NPC可以回复
+			if self.chat_panel.pending_ai_response:
+				print("[Level] 没有NPC，重置pending_ai_response状态")
+				self.chat_panel.pending_ai_response = False
+				self.chat_panel.ai_response_timeout = 0
 	
 	def show_npc_interaction_hint(self):
 		"""显示NPC交互提示"""
@@ -629,6 +647,10 @@ class Level:
 			
 			self.pending_npc_response = None
 		
+		# 猫咪管理器和事件系统更新
+		self.cat_manager.update(dt)
+		self.event_notification_manager.update(dt)
+		
 		# 聊天面板更新和渲染
 		self.chat_panel.update(dt)
 		self.chat_panel.render(self.display_surface)
@@ -649,6 +671,9 @@ class Level:
 		# 鱼获结果面板更新和渲染
 		self.catch_result_panel.update(dt)
 		self.catch_result_panel.render(self.display_surface)
+		
+		# 事件通知渲染（放在最后，确保在最顶层显示）
+		self.event_notification_manager.render(self.display_surface)
 
 		# 过渡动画
 		if self.player.sleep:

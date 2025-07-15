@@ -1,0 +1,686 @@
+{
+  "events": [
+    {
+      "id": "cat_martial_arts",
+      "name": "🥊 猫猫武林大会",
+      "description": "多只猫猫比拼武艺，争夺喵林盟主称号",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 3.0,
+      "cooldown": 120.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}在武林大会中击败了{cat2}，成为新的喵林盟主！",
+          "relationship_changes": {
+            "friendship": -5,
+            "rivalry": 15,
+            "cooperation": -3
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}在武林大会中打成平手，决定结为武友！",
+          "relationship_changes": {
+            "friendship": 10,
+            "rivalry": 5,
+            "cooperation": 8
+          }
+        },
+        {
+          "message": "{cat1}在比武中意外受伤，{cat2}连忙上前照顾...",
+          "relationship_changes": {
+            "friendship": 15,
+            "romance": 5,
+            "rivalry": -5
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_blind_date",
+      "name": "💕 猫猫相亲大会",
+      "description": "组织blind date，可能产生新的CP或者尴尬场面",
+      "min_participants": 2,
+      "max_participants": 3,
+      "weight": 4.0,
+      "cooldown": 180.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}和{cat2}在相亲中一见钟情，开始了甜蜜的恋爱！💕",
+          "relationship_changes": {
+            "friendship": 20,
+            "romance": 30,
+            "cooperation": 10
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}的相亲现场超级尴尬，两猫都想挖洞钻进去...",
+          "relationship_changes": {
+            "friendship": -10,
+            "romance": -15
+          }
+        },
+        {
+          "message": "{cat3}突然闯入{cat1}和{cat2}的相亲现场，形成了微妙的三角关系...",
+          "relationship_changes": {
+            "friendship": -5,
+            "romance": 10,
+            "rivalry": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_esports_team",
+      "name": "🎮 猫猫电竞战队",
+      "description": "组队打《王者喵耀》，有胜负和队内矛盾",
+      "min_participants": 2,
+      "max_participants": 5,
+      "weight": 3.5,
+      "cooldown": 90.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cats}组建电竞战队大获全胜，决定一起开直播赚猫粮！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 20,
+            "rivalry": -5
+          }
+        },
+        {
+          "message": "{cat1}在团战中坑了队友{cat2}，队内气氛瞬间紧张...",
+          "relationship_changes": {
+            "friendship": -10,
+            "rivalry": 10,
+            "cooperation": -15
+          }
+        },
+        {
+          "message": "{cat1}carry全场带飞{cat2}，两猫从此成为黄金搭档！",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 25,
+            "romance": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_live_streaming",
+      "name": "📱 猫猫直播带货",
+      "description": "在抖猫上卖猫薄荷、猫粮，可能翻车或爆火",
+      "min_participants": 1,
+      "max_participants": 3,
+      "weight": 2.5,
+      "cooldown": 150.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}的直播间爆火，{cat2}主动来当助理，生意兴隆！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 20
+          }
+        },
+        {
+          "message": "{cat1}直播时翻车了，{cat2}在弹幕里疯狂刷666安慰...",
+          "relationship_changes": {
+            "friendship": 10,
+            "cooperation": 5
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}因为直播收益分配问题大吵一架！",
+          "relationship_changes": {
+            "friendship": -15,
+            "rivalry": 15,
+            "cooperation": -20
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_art_salon",
+      "name": "🎨 猫猫艺术沙龙",
+      "description": "举办画展，互相点评作品，产生艺术争议",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 2.0,
+      "cooldown": 200.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}的爪印画被{cat2}称赞为天才之作，两猫成为艺术知己！",
+          "relationship_changes": {
+            "friendship": 18,
+            "cooperation": 12
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}因为艺术理念不同激烈争论，差点打起来...",
+          "relationship_changes": {
+            "friendship": -12,
+            "rivalry": 18
+          }
+        },
+        {
+          "message": "{cat1}偷偷模仿{cat2}的画风，被发现后场面尴尬...",
+          "relationship_changes": {
+            "friendship": -8,
+            "rivalry": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_real_estate",
+      "name": "🏠 猫猫房产中介",
+      "description": "争夺最佳晒太阳位置，房价波动",
+      "min_participants": 2,
+      "max_parameters": 3,
+      "weight": 3.0,
+      "cooldown": 100.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}把最好的阳台位置让给了{cat2}，真是太暖心了！",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 15
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}为了窗台使用权展开激烈竞争！",
+          "relationship_changes": {
+            "friendship": -10,
+            "rivalry": 20
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}决定轮流使用最佳晒太阳位置，和谐共处！",
+          "relationship_changes": {
+            "friendship": 10,
+            "cooperation": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_love_triangle",
+      "name": "💔 猫猫狗血三角恋",
+      "description": "A猫喜欢B猫，B猫喜欢C猫，C猫喜欢A猫",
+      "min_participants": 3,
+      "max_participants": 3,
+      "weight": 1.5,
+      "cooldown": 300.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}发现{cat2}喜欢{cat3}，而{cat3}却喜欢自己，复杂的三角关系开始了...",
+          "relationship_changes": {
+            "friendship": -5,
+            "romance": 15,
+            "rivalry": 25
+          }
+        },
+        {
+          "message": "三猫坦诚相见，决定放下恩怨做回朋友！",
+          "relationship_changes": {
+            "friendship": 15,
+            "romance": -10,
+            "rivalry": -15
+          }
+        },
+        {
+          "message": "三角恋最终演变成了史诗级大乱斗...",
+          "relationship_changes": {
+            "friendship": -20,
+            "rivalry": 30,
+            "cooperation": -15
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_delivery_startup",
+      "name": "🍱 猫猫外卖创业",
+      "description": "开"喵了个外卖"，送小鱼干和猫草",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 2.8,
+      "cooldown": 180.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cats}的外卖生意红红火火，成为创业典型！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 25
+          }
+        },
+        {
+          "message": "{cat1}送外卖迷路了，{cat2}骑着扫地机器人去救援！",
+          "relationship_changes": {
+            "friendship": 18,
+            "cooperation": 10
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}因为外卖分工问题产生分歧...",
+          "relationship_changes": {
+            "friendship": -8,
+            "rivalry": 12,
+            "cooperation": -10
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_viral_video",
+      "name": "🎬 猫猫短视频拍摄",
+      "description": "拍搞笑视频，可能意外走红或黑历史",
+      "min_participants": 2,
+      "max_participants": 3,
+      "weight": 3.0,
+      "cooldown": 120.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}和{cat2}的沙雕视频意外爆红，成为网红猫咪！",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 15
+          }
+        },
+        {
+          "message": "{cat1}拍视频时出糗，{cat2}承诺永远不会泄露这个黑历史...",
+          "relationship_changes": {
+            "friendship": 12,
+            "cooperation": 8
+          }
+        },
+        {
+          "message": "{cat2}偷偷把{cat1}的丑照做成表情包传播...",
+          "relationship_changes": {
+            "friendship": -15,
+            "rivalry": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_study_group",
+      "name": "📚 猫猫读书会",
+      "description": "在喵乎上学习，讨论《如何优雅地推倒花瓶》",
+      "min_participants": 2,
+      "max_participants": 5,
+      "weight": 2.0,
+      "cooldown": 150.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cats}一起学习新技能，知识就是力量！",
+          "relationship_changes": {
+            "friendship": 12,
+            "cooperation": 18
+          }
+        },
+        {
+          "message": "{cat1}当起了{cat2}的学习导师，关系更进一步！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 12,
+            "romance": 3
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}因为学术观点分歧发生争执...",
+          "relationship_changes": {
+            "friendship": -8,
+            "rivalry": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_group_buying",
+      "name": "🛒 猫猫团购拼单",
+      "description": "在喵宝网拼单买猫砂，讨价还价",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 3.5,
+      "cooldown": 90.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cats}团购成功，大家都省了不少猫粮钱！",
+          "relationship_changes": {
+            "friendship": 10,
+            "cooperation": 15
+          }
+        },
+        {
+          "message": "{cat1}占了{cat2}的团购便宜，关系有点微妙...",
+          "relationship_changes": {
+            "friendship": -5,
+            "rivalry": 8
+          }
+        },
+        {
+          "message": "{cat1}主动多付钱让{cat2}受益，真是好朋友！",
+          "relationship_changes": {
+            "friendship": 18,
+            "cooperation": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_circus",
+      "name": "🎪 猫猫马戏团",
+      "description": "表演杂技，有人出风头有人嫉妒",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 2.5,
+      "cooldown": 180.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}的杂技表演技惊四座，{cat2}投来羡慕的目光...",
+          "relationship_changes": {
+            "friendship": 5,
+            "rivalry": 15
+          }
+        },
+        {
+          "message": "{cat1}表演失误，{cat2}连忙上台救场，配合默契！",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 18
+          }
+        },
+        {
+          "message": "{cats}的团体表演完美无缺，观众掌声雷动！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_detective_agency",
+      "name": "🔍 猫猫侦探社",
+      "description": "调查"谁偷了我的小鱼干"案件",
+      "min_participants": 2,
+      "max_participants": 3,
+      "weight": 2.8,
+      "cooldown": 200.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}和{cat2}成功破案，发现小鱼干是被老鼠偷的！",
+          "relationship_changes": {
+            "friendship": 18,
+            "cooperation": 22
+          }
+        },
+        {
+          "message": "{cat1}怀疑{cat2}是内鬼，侦探社内部分裂了...",
+          "relationship_changes": {
+            "friendship": -15,
+            "rivalry": 20,
+            "cooperation": -18
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}发现真相：小鱼干其实是{cat3}吃的！",
+          "relationship_changes": {
+            "friendship": 8,
+            "cooperation": 15,
+            "rivalry": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_beauty_contest",
+      "name": "🏆 猫猫选美大赛",
+      "description": "比拼颜值，可能有暗箱操作和抗议",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 2.0,
+      "cooldown": 250.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}赢得选美冠军，{cat2}真心为朋友感到高兴！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 8
+          }
+        },
+        {
+          "message": "{cat1}输给{cat2}后开始减肥健身，立志东山再起！",
+          "relationship_changes": {
+            "friendship": -5,
+            "rivalry": 18
+          }
+        },
+        {
+          "message": "{cat1}怀疑{cat2}贿赂评委，选美大赛爆发丑闻...",
+          "relationship_changes": {
+            "friendship": -20,
+            "rivalry": 25
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_cooking_contest",
+      "name": "🍳 猫猫料理大赛",
+      "description": "制作猫食，有厨艺天才和厨房杀手",
+      "min_participants": 2,
+      "max_participants": 3,
+      "weight": 3.0,
+      "cooldown": 150.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}做的小鱼干蛋糕征服了{cat2}的味蕾！",
+          "relationship_changes": {
+            "friendship": 20,
+            "romance": 8
+          }
+        },
+        {
+          "message": "{cat1}把厨房炸了，{cat2}哭笑不得地帮忙收拾...",
+          "relationship_changes": {
+            "friendship": 12,
+            "cooperation": 10
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}互相较劲，厨艺竞争白热化！",
+          "relationship_changes": {
+            "friendship": -3,
+            "rivalry": 15,
+            "cooperation": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_stock_market",
+      "name": "💰 猫猫股市炒作",
+      "description": "炒作"猫薄荷期货"，有人发财有人破产",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 1.8,
+      "cooldown": 300.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}带着{cat2}炒股赚了大钱，请客吃豪华猫粮！",
+          "relationship_changes": {
+            "friendship": 25,
+            "cooperation": 15
+          }
+        },
+        {
+          "message": "{cat1}炒股亏惨了，{cat2}慷慨解囊相助...",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 18
+          }
+        },
+        {
+          "message": "{cat1}的投资建议坑了{cat2}，友谊的小船说翻就翻...",
+          "relationship_changes": {
+            "friendship": -25,
+            "rivalry": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_talent_show",
+      "name": "🎵 猫猫选秀节目",
+      "description": "参加《中国好喵音》，有导师转身和淘汰",
+      "min_participants": 2,
+      "max_participants": 3,
+      "weight": 2.5,
+      "cooldown": 220.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}的天籁之音让{cat2}瞬间转身，收为徒弟！",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 15
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}同台竞技，惺惺相惜成为好友！",
+          "relationship_changes": {
+            "friendship": 18,
+            "rivalry": 5,
+            "cooperation": 12
+          }
+        },
+        {
+          "message": "{cat1}被淘汰，{cat2}安慰说：下次一定！",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_travel_group",
+      "name": "🌍 猫猫旅游团",
+      "description": "组团去"猫岛"旅游，发生各种意外",
+      "min_participants": 2,
+      "max_participants": 5,
+      "weight": 2.2,
+      "cooldown": 400.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cats}的猫岛之旅完美收官，友谊更上一层楼！",
+          "relationship_changes": {
+            "friendship": 22,
+            "cooperation": 18
+          }
+        },
+        {
+          "message": "{cat1}在旅途中照顾生病的{cat2}，感情升温...",
+          "relationship_changes": {
+            "friendship": 18,
+            "romance": 12,
+            "cooperation": 15
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}因为旅游路线分歧争执不下...",
+          "relationship_changes": {
+            "friendship": -10,
+            "rivalry": 15
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_programming",
+      "name": "💻 猫猫程序员",
+      "description": "开发"喵喵交友APP"，有bug和用户吐槽",
+      "min_participants": 2,
+      "max_participants": 3,
+      "weight": 2.0,
+      "cooldown": 180.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}和{cat2}的APP上线大获成功，成为技术大佬！",
+          "relationship_changes": {
+            "friendship": 20,
+            "cooperation": 25
+          }
+        },
+        {
+          "message": "{cat1}写的代码全是bug，{cat2}熬夜帮忙debug...",
+          "relationship_changes": {
+            "friendship": 15,
+            "cooperation": 20
+          }
+        },
+        {
+          "message": "{cat1}和{cat2}因为代码风格问题发生分歧...",
+          "relationship_changes": {
+            "friendship": -8,
+            "rivalry": 12,
+            "cooperation": -5
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat_theater",
+      "name": "🎭 猫猫话剧社",
+      "description": "排演《罗密欧与朱丽叶》，有戏里戏外的爱恨情仇",
+      "min_participants": 2,
+      "max_participants": 4,
+      "weight": 2.3,
+      "cooldown": 200.0,
+      "conditions": {},
+      "outcomes": [
+        {
+          "message": "{cat1}和{cat2}在演出中假戏真做，台下观众嗑糖嗑到饱！",
+          "relationship_changes": {
+            "friendship": 15,
+            "romance": 25,
+            "cooperation": 12
+          }
+        },
+        {
+          "message": "{cat1}忘词了，{cat2}机智救场，配合天衣无缝！",
+          "relationship_changes": {
+            "friendship": 18,
+            "cooperation": 20
+          }
+        },
+        {
+          "message": "{cat1}抢了{cat2}的主角位置，后台气氛紧张...",
+          "relationship_changes": {
+            "friendship": -15,
+            "rivalry": 22,
+            "cooperation": -12
+          }
+        }
+      ]
+    }
+  ]
+}

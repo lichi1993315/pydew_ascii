@@ -16,6 +16,8 @@ class ChatPanel:
         # AI回复系统
         self.message_callback: Optional[Callable] = None  # 当玩家发送消息时的回调函数
         self.pending_ai_response = False  # 是否在等待AI回复
+        self.ai_response_timeout = 0  # AI回复超时计时器（秒）
+        self.ai_response_max_timeout = 10.0  # 最大等待时间（秒）
         
         # 游戏回调系统
         self.spawn_cat_callback: Optional[Callable] = None  # 生成猫咪的回调函数
@@ -133,6 +135,7 @@ class ChatPanel:
             if self.message_callback and not self.pending_ai_response:
                 print(f"[聊天面板] 触发AI回复处理")
                 self.pending_ai_response = True
+                self.ai_response_timeout = 0  # 重置超时计时器
                 self.message_callback(message)
             elif self.pending_ai_response:
                 print(f"[聊天面板] 跳过AI回复 - 正在等待之前的回复")
@@ -320,6 +323,16 @@ class ChatPanel:
         if self.cursor_blink_timer >= 0.5:
             self.cursor_visible = not self.cursor_visible
             self.cursor_blink_timer = 0
+        
+        # 检查AI回复超时
+        if self.pending_ai_response:
+            self.ai_response_timeout += dt
+            if self.ai_response_timeout >= self.ai_response_max_timeout:
+                print(f"[聊天面板] AI回复超时，自动重置状态 (等待了 {self.ai_response_timeout:.1f} 秒)")
+                self.pending_ai_response = False
+                self.ai_response_timeout = 0
+                # 添加超时消息
+                self.add_system_message("AI回复超时，请重试...")
     
     def render(self, surface):
         """渲染聊天面板"""
@@ -574,6 +587,7 @@ class ChatPanel:
         
         # 重置等待状态
         self.pending_ai_response = False
+        self.ai_response_timeout = 0  # 重置超时计时器
         
         print(f"[聊天面板] AI回复 {sender}: {message}")
         print(f"[聊天面板] 重置pending_ai_response状态为False")
@@ -622,6 +636,7 @@ class ChatPanel:
                 }
                 # 重置等待状态
                 self.pending_ai_response = False
+                self.ai_response_timeout = 0  # 重置超时计时器
                 print(f"[聊天面板] 替换思考消息为实际回复: {npc_name}: {response}")
                 print(f"[聊天面板] 重置pending_ai_response状态为False")
                 return
