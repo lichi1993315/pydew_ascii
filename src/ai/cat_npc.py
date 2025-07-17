@@ -100,6 +100,18 @@ class CatNPC(ASCIINPC):
         self.mood_timer = 0.0
         self.mood_duration = random.uniform(10.0, 30.0)  # 心情持续时间
         
+        # 猫咪照护系统
+        self.mood_value = 50              # 心情值 (0-100)
+        self.energy_value = 100           # 精力值 (0-100)
+        self.sleep_state = "awake"        # 睡眠状态: awake, sleeping
+        self.owned_cat_bed = None         # 拥有的猫窝
+        self.last_interaction_time = 0    # 最后与玩家互动时间
+        self.mood_decay_timer = 0.0       # 心情衰减计时器
+        self.energy_decay_timer = 0.0     # 精力衰减计时器
+        self.sleep_location = None        # 睡眠位置
+        self.leaving_warning_timer = 0.0  # 离开警告计时器
+        self.leaving_warning_shown = False # 是否已显示离开警告
+        
         # 头顶emoji系统
         self.head_emoji_system = {
             'current_emoji': None,
@@ -200,6 +212,42 @@ class CatNPC(ASCIINPC):
         self.hitbox.centery = round(self.pos.y)
         self.rect.centery = self.hitbox.centery
         self.collision('vertical')
+    
+    def _update_bed_movement(self, dt):
+        """更新前往猫窝的移动逻辑"""
+        if self.target_pos is None:
+            return
+        
+        current_pos = pygame.math.Vector2(self.rect.center)
+        distance_to_target = current_pos.distance_to(self.target_pos)
+        
+        # 如果接近猫窝
+        if distance_to_target < 40:
+            self._arrive_at_bed()
+            return
+        
+        # 计算朝向猫窝的方向
+        direction = (self.target_pos - current_pos)
+        if direction.magnitude() > 0:
+            self.direction = direction.normalize()
+        
+        # 移动（使用与普通移动相同的逻辑）
+        self.pos.x += self.direction.x * self.move_speed * dt
+        self.hitbox.centerx = round(self.pos.x)
+        self.rect.centerx = self.hitbox.centerx
+        self.collision('horizontal')
+        
+        self.pos.y += self.direction.y * self.move_speed * dt
+        self.hitbox.centery = round(self.pos.y)
+        self.rect.centery = self.hitbox.centery
+        self.collision('vertical')
+    
+    def _arrive_at_bed(self):
+        """到达猫窝"""
+        self.movement_state = "sleeping"
+        self.target_pos = None
+        self.direction = pygame.math.Vector2(0, 0)
+        print(f"🐱 {self.cat_name} 到达猫窝，开始睡觉")
     
     def _deliver_insect_to_workbench(self):
         """将虫子送到工作台"""
@@ -346,6 +394,8 @@ class CatNPC(ASCIINPC):
             self._update_movement(dt)
         elif self.movement_state == "moving_to_workbench":
             self._update_workbench_movement(dt)
+        elif self.movement_state == "moving_to_bed":
+            self._update_bed_movement(dt)
         elif self.movement_state == "idle":
             # 闲置状态，偶尔小幅度移动
             if random.random() < 0.01:  # 1%概率小移动
@@ -368,6 +418,9 @@ class CatNPC(ASCIINPC):
         
         # 更新头顶emoji系统
         self._update_head_emoji_system(dt)
+        
+        # 更新猫咪照护系统
+        self._update_care_system(dt)
         
         # 更新ASCII字符显示
         self._update_ascii_display()
@@ -653,6 +706,12 @@ class CatNPC(ASCIINPC):
         self._set_head_emoji('💬', 5.0)  # 对话期间显示5秒
         other_cat._set_head_emoji('💬', 5.0)
         
+        # 对话心情奖励
+        self.add_mood(5, "猫咪间对话")
+        other_cat.add_mood(5, "猫咪间对话")
+        self.consume_energy(2, "对话活动")
+        other_cat.consume_energy(2, "对话活动")
+        
         # 设置冷却期
         self.conversation_cooldown = self.conversation_cooldown_max
         other_cat.conversation_cooldown = other_cat.conversation_cooldown_max
@@ -830,6 +889,257 @@ class CatNPC(ASCIINPC):
             # 按时间排序
             all_conversations.sort(key=lambda x: x['timestamp'])
             return all_conversations
+    
+    # ========== 猫咪照护系统方法 ==========
+    
+    def _update_care_system(self, dt):
+        """更新猫咪照护系统"""
+        # 更新计时器
+        self.mood_decay_timer += dt
+        self.energy_decay_timer += dt
+        
+        # 每60秒更新一次心情值
+        if self.mood_decay_timer >= 60.0:
+            self._update_mood_value()
+            self.mood_decay_timer = 0.0
+        
+        # 每60秒更新一次精力值
+        if self.energy_decay_timer >= 60.0:
+            self._update_energy_value()
+            self.energy_decay_timer = 0.0
+        
+        # 检查睡眠状态
+        self._check_sleep_state()
+        
+        # 检查离开条件
+        self._check_leaving_condition()
+    
+    def _update_mood_value(self):
+        """更新心情值"""
+        # 心情下降机制
+        mood_change = 0
+        
+        # 无猫窝时：每分钟-2心情值
+        if self.owned_cat_bed is None:
+            mood_change -= 2
+            print(f"🐱 {self.cat_name} 因为没有猫窝心情下降 -2")
+        
+        # 精力值过低时：每分钟-1心情值
+        if self.energy_value < 30:
+            mood_change -= 1
+            print(f"🐱 {self.cat_name} 因为精力不足心情下降 -1")
+        
+        # 长时间未与玩家互动：每5分钟-1心情值
+        import time
+        current_time = time.time()
+        if current_time - self.last_interaction_time > 300:  # 5分钟
+            mood_change -= 1
+            print(f"🐱 {self.cat_name} 因为缺乏互动心情下降 -1")
+        
+        # 应用心情变化
+        self.mood_value = max(0, min(100, self.mood_value + mood_change))
+        
+        # 更新心情状态
+        self._update_mood_state()
+    
+    def _update_energy_value(self):
+        """更新精力值"""
+        if self.sleep_state == "sleeping":
+            # 睡眠恢复精力
+            if self.owned_cat_bed and self.sleep_location == "cat_bed":
+                # 在猫窝睡觉：+20精力值/分钟
+                energy_gain = 20
+                mood_gain = 2  # 同时恢复心情
+                self.mood_value = min(100, self.mood_value + mood_gain)
+                print(f"🐱 {self.cat_name} 在猫窝睡觉，精力+{energy_gain}，心情+{mood_gain}")
+            else:
+                # 地面睡觉：+10精力值/分钟
+                energy_gain = 10
+                print(f"🐱 {self.cat_name} 在地面睡觉，精力+{energy_gain}")
+            
+            self.energy_value = min(100, self.energy_value + energy_gain)
+        else:
+            # 正常活动消耗精力
+            energy_loss = 1
+            
+            # 移动时额外消耗
+            if self.movement_state == "moving":
+                energy_loss += 1
+            
+            self.energy_value = max(0, self.energy_value - energy_loss)
+        
+        # 更新精力状态效果
+        self._update_energy_effects()
+    
+    def _update_mood_state(self):
+        """根据心情值更新心情状态"""
+        if self.mood_value >= 80:
+            self.mood = "happy"
+            self.mood_status = "😸 开心"
+            self.mood_effect = "抓虫效率+20%"
+        elif self.mood_value >= 60:
+            self.mood = "normal"
+            self.mood_status = "😊 正常"
+            self.mood_effect = "无特殊效果"
+        elif self.mood_value >= 40:
+            self.mood = "neutral"
+            self.mood_status = "😐 一般"
+            self.mood_effect = "抓虫效率-10%"
+        elif self.mood_value >= 20:
+            self.mood = "sad"
+            self.mood_status = "😿 沮丧"
+            self.mood_effect = "抓虫效率-20%，移动速度-10%"
+        else:
+            self.mood = "depressed"
+            self.mood_status = "😭 极度沮丧"
+            self.mood_effect = "即将离开"
+    
+    def _update_energy_effects(self):
+        """更新精力值对行为的影响"""
+        if self.energy_value < 50:
+            # 疲劳状态：移动速度-20%
+            self.move_speed = max(10, self.move_speed * 0.8)
+    
+    def _check_sleep_state(self):
+        """检查睡眠状态"""
+        if self.sleep_state == "awake" and self.energy_value <= 30:
+            # 精力不足，需要睡眠
+            self._enter_sleep_state()
+        elif self.sleep_state == "sleeping" and self.energy_value >= 80:
+            # 精力恢复，结束睡眠
+            self._exit_sleep_state()
+    
+    def _enter_sleep_state(self):
+        """进入睡眠状态"""
+        self.sleep_state = "sleeping"
+        self.movement_state = "sleeping"
+        self.direction = pygame.math.Vector2(0, 0)
+        
+        # 寻找睡眠地点
+        self._find_sleep_location()
+        
+        # 显示睡眠表情
+        self.force_head_emoji('💤', 300)  # 显示5分钟
+        
+        print(f"🐱 {self.cat_name} 感到疲劳，开始睡觉")
+    
+    def _exit_sleep_state(self):
+        """退出睡眠状态"""
+        self.sleep_state = "awake"
+        self.movement_state = "idle"
+        
+        # 释放猫窝
+        if self.sleep_location == "cat_bed" and self.owned_cat_bed:
+            self.owned_cat_bed.release()
+            self.owned_cat_bed = None
+        
+        self.sleep_location = None
+        
+        # 睡眠奖励
+        self.mood_value = min(100, self.mood_value + 5)
+        
+        # 清除睡眠表情
+        self.clear_head_emoji()
+        
+        print(f"🐱 {self.cat_name} 睡醒了，心情+5")
+    
+    def _find_sleep_location(self):
+        """寻找睡眠地点"""
+        # 优先选择自己的猫窝
+        from ..systems.cat_bed import get_cat_bed_manager
+        cat_bed_manager = get_cat_bed_manager()
+        
+        my_cat_bed = cat_bed_manager.get_cat_bed_by_owner(self.npc_id)
+        
+        if my_cat_bed and my_cat_bed.can_be_used_by(self):
+            # 移动到猫窝位置
+            self.target_pos = my_cat_bed.bed_pos.copy()
+            self.movement_state = "moving_to_bed"
+            my_cat_bed.occupy(self)
+            self.sleep_location = "cat_bed"
+            print(f"🐱 {self.cat_name} 前往自己的猫窝睡觉")
+        else:
+            # 在当前位置睡觉
+            self.sleep_location = "ground"
+            print(f"🐱 {self.cat_name} 在地面睡觉")
+    
+    def _check_leaving_condition(self):
+        """检查离开条件"""
+        if self.mood_value == 0:
+            if not self.leaving_warning_shown:
+                # 显示离开警告
+                self.leaving_warning_shown = True
+                self.leaving_warning_timer = 300.0  # 5分钟警告
+                print(f"⚠️ {self.cat_name} 心情极度低落，将在5分钟后离开！")
+                
+                # 显示离开警告通知
+                if hasattr(self, 'cat_manager') and self.cat_manager.event_notification_manager:
+                    self.cat_manager.event_notification_manager.add_notification(
+                        f"⚠️ {self.cat_name} 心情极度低落，将在5分钟后离开！",
+                        duration=10.0,
+                        notification_type="warning"
+                    )
+            else:
+                # 倒计时离开
+                self.leaving_warning_timer -= 1.0
+                if self.leaving_warning_timer <= 0:
+                    self._leave_game()
+        else:
+            # 心情恢复，取消离开警告
+            if self.leaving_warning_shown:
+                self.leaving_warning_shown = False
+                self.leaving_warning_timer = 0.0
+                print(f"😊 {self.cat_name} 心情好转，取消离开")
+    
+    def _leave_game(self):
+        """猫咪离开游戏"""
+        print(f"😿 {self.cat_name} 因为心情太差离开了游戏世界")
+        
+        # 显示离开通知
+        if hasattr(self, 'cat_manager') and self.cat_manager.event_notification_manager:
+            self.cat_manager.event_notification_manager.add_notification(
+                f"😿 {self.cat_name} 因为心情太差离开了游戏世界",
+                duration=10.0,
+                notification_type="cat_leave"
+            )
+        
+        # 从猫咪管理器中移除
+        if hasattr(self, 'cat_manager') and self in self.cat_manager.cats:
+            self.cat_manager.cats.remove(self)
+        
+        # 从精灵组中移除
+        self.kill()
+    
+    def add_mood(self, amount, reason=""):
+        """增加心情值"""
+        old_mood = self.mood_value
+        self.mood_value = min(100, self.mood_value + amount)
+        print(f"🐱 {self.cat_name} 心情+{amount} ({reason}): {old_mood} → {self.mood_value}")
+        self._update_mood_state()
+    
+    def consume_energy(self, amount, reason=""):
+        """消耗精力值"""
+        old_energy = self.energy_value
+        self.energy_value = max(0, self.energy_value - amount)
+        print(f"🐱 {self.cat_name} 精力-{amount} ({reason}): {old_energy} → {self.energy_value}")
+    
+    def update_interaction_time(self):
+        """更新最后互动时间"""
+        import time
+        self.last_interaction_time = time.time()
+    
+    def get_care_status(self):
+        """获取照护状态信息"""
+        return {
+            "mood_value": self.mood_value,
+            "energy_value": self.energy_value,
+            "sleep_state": self.sleep_state,
+            "mood_status": getattr(self, 'mood_status', '😊 正常'),
+            "mood_effect": getattr(self, 'mood_effect', '无特殊效果'),
+            "has_cat_bed": self.owned_cat_bed is not None,
+            "leaving_warning": self.leaving_warning_shown,
+            "leaving_time": self.leaving_warning_timer if self.leaving_warning_shown else 0
+        }
 
 class CatManager:
     """猫咪管理器"""
@@ -1187,6 +1497,14 @@ class CatManager:
                         cat1_name, cat2_name, changes
                     )
         
+        # 给参与事件的猫咪心情奖励
+        for participant_id in event_result.participants:
+            # 通过ID找到对应的猫咪
+            for cat in self.cats:
+                if cat.npc_id == participant_id:
+                    cat.add_mood(10, "猫咪聚集事件")
+                    break
+        
         # 打印调试信息
         print(f"[CatManager] 触发事件: {event_result.message}")
         for participant in event_result.participants:
@@ -1235,8 +1553,10 @@ class CatManager:
                 'ascii_char': selected_insect.ascii_char
             }
             
-            # 猫咪显示开心表情
+            # 猫咪显示开心表情和心情奖励
             cat.force_head_emoji('😸', 3.0)
+            cat.add_mood(3, "成功抓虫")
+            cat.consume_energy(5, "抓虫活动")
             
             print(f"🐱 {cat.cat_name} 抓到了 {selected_insect.name}！正在前往工作台...")
             

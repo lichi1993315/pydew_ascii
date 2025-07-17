@@ -525,11 +525,23 @@ class Level:
 			self.npc_sprites
 		)
 		
+		# 如果是猫咪，更新互动时间和心情奖励
+		nearby_cat = None
+		for cat in self.cat_manager.cats:
+			if cat.npc_id == nearby_npc_id:
+				nearby_cat = cat
+				break
+		
 		if nearby_npc_id:
 			# 获取NPC数据并显示思考指示器
 			npc_data = self.npc_manager.get_npc(nearby_npc_id)
 			if npc_data:
 				print(f"[Level] 找到附近NPC: {npc_data.name} ({nearby_npc_id})")
+				
+				# 如果是猫咪，添加心情奖励并更新互动时间
+				if nearby_cat:
+					nearby_cat.add_mood(8, "与玩家聊天")
+					nearby_cat.update_interaction_time()
 				
 				# 立即显示"正在思考"消息
 				self.chat_panel.add_thinking_message(npc_data.name)
@@ -706,6 +718,10 @@ class Level:
 		
 		# 鱼饵箱UI
 		self.bait_box_ui.draw(self.display_surface)
+		
+		# 背包界面渲染
+		self.player.inventory_ui.render()
+		self.player.inventory_ui.render_placement_preview()
 		
 		# 事件通知渲染（放在最后，确保在最顶层显示）
 		self.event_notification_manager.render(self.display_surface)

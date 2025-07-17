@@ -100,6 +100,7 @@ class Player(pygame.sprite.Sprite):
 			'fishing': Timer(2000,self.finish_fishing),  # 钓鱼需要2秒
 			'log_panel': Timer(200),  # 日志面板切换冷却
 			'quest_panel': Timer(200),  # 任务面板切换冷却
+			'inventory': Timer(200),  # 背包面板切换冷却
 		}
 
 		# tools 
@@ -125,6 +126,10 @@ class Player(pygame.sprite.Sprite):
 		'corn': 5,
 		'tomato': 5
 		}
+		
+		# 猫窝库存
+		self.cat_bed_inventory = {}
+		
 		self.money = 200
 
 		# 任务系统
@@ -154,6 +159,10 @@ class Player(pygame.sprite.Sprite):
 		
 		# 聊天面板引用
 		self.chat_panel = chat_panel
+		
+		# 背包界面
+		from ..ui.inventory_ui import InventoryUI
+		self.inventory_ui = InventoryUI(self)
 
 		# interaction
 		self.tree_sprites = tree_sprites
@@ -1031,6 +1040,13 @@ class Player(pygame.sprite.Sprite):
 		# 如果聊天面板的输入框是激活状态，禁用所有玩家输入
 		if self.chat_panel and self.chat_panel.is_input_focused():
 			return
+		
+		# 处理背包界面输入
+		self.inventory_ui.handle_input(keys)
+		
+		# 如果背包界面打开或在放置模式，不处理其他输入
+		if self.inventory_ui.is_open or self.inventory_ui.is_placement_mode_active():
+			return
 
 		# 钓鱼功能 - 在任何状态下都能处理空格键
 		if keys[pygame.K_SPACE] and not self.space_key_pressed:
@@ -1098,6 +1114,13 @@ class Player(pygame.sprite.Sprite):
 			if keys[pygame.K_q] and not self.timers['quest_panel'].active and self.quest_panel:
 				self.timers['quest_panel'].activate()
 				self.quest_panel.toggle()
+			
+			# 背包界面切换
+			if keys[pygame.K_b] and not self.timers.get('inventory', Timer(200)).active:
+				if 'inventory' not in self.timers:
+					self.timers['inventory'] = Timer(200)
+				self.timers['inventory'].activate()
+				self.inventory_ui.toggle()
 
 			if keys[pygame.K_RETURN]:
 				collided_interaction_sprite = pygame.sprite.spritecollide(self,self.interaction,False)
@@ -1186,6 +1209,9 @@ class Player(pygame.sprite.Sprite):
 
 		self.move(dt)
 		self.animate(dt)
+		
+		# 更新背包界面
+		self.inventory_ui.update(dt)
 
 	def update_fisherman_talked(self):
 		"""标记已与渔夫对话"""

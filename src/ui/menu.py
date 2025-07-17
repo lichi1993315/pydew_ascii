@@ -19,9 +19,15 @@ class Menu:
 		self.space = 10
 		self.padding = 8
 
-		# entries
-		self.options = list(self.player.item_inventory.keys()) + list(self.player.seed_inventory.keys())
+		# entries - 只显示物品出售和猫窝购买
+		self.options = list(self.player.item_inventory.keys())
 		self.sell_border = len(self.player.item_inventory) - 1
+		
+		# 添加猫窝商品（替换种子购买）
+		from ..settings import CAT_BED_TYPES
+		self.cat_bed_options = list(CAT_BED_TYPES.keys())
+		self.options.extend(self.cat_bed_options)
+		
 		self.setup()
 
 		# movement
@@ -42,7 +48,14 @@ class Menu:
 		self.total_height = 0
 
 		for item in self.options:
-			text_surf = self.font.render(item, False, 'Black')
+			# 获取显示名称
+			if item in self.cat_bed_options:
+				from ..settings import CAT_BED_TYPES
+				display_name = CAT_BED_TYPES[item]['name']
+			else:
+				display_name = item
+			
+			text_surf = self.font.render(display_name, False, 'Black')
 			self.text_surfs.append(text_surf)
 			self.total_height += text_surf.get_height() + (self.padding * 2)
 
@@ -84,16 +97,91 @@ class Menu:
 
 				# buy
 				else:
-					seed_price = PURCHASE_PRICES[current_item]
-					if self.player.money >= seed_price:
-						self.player.seed_inventory[current_item] += 1
-						self.player.money -= PURCHASE_PRICES[current_item]
+					if current_item in self.cat_bed_options:
+						# 猫窝购买逻辑
+						self._handle_cat_bed_purchase(current_item)
+					# 移除种子购买逻辑，现在只支持猫窝购买
 
 		# clamo the values
 		if self.index < 0:
 			self.index = len(self.options) - 1
 		if self.index > len(self.options) - 1:
 			self.index = 0
+	
+	def _handle_cat_bed_purchase(self, bed_type):
+		"""处理猫窝购买"""
+		from ..settings import PURCHASE_PRICES
+		
+		bed_price = PURCHASE_PRICES[bed_type]
+		
+		if self.player.money >= bed_price:
+			# 检查是否有猫咪可以绑定
+			available_cats = self._get_available_cats_for_bed()
+			
+			if available_cats:
+				# 简单起见，自动绑定第一只没有猫窝的猫咪
+				selected_cat = available_cats[0]
+				
+				# 扣除金币
+				self.player.money -= bed_price
+				
+				# 添加猫窝到玩家背包
+				if not hasattr(self.player, 'cat_bed_inventory'):
+					self.player.cat_bed_inventory = {}
+				
+				if bed_type not in self.player.cat_bed_inventory:
+					self.player.cat_bed_inventory[bed_type] = []
+				
+				bed_data = {
+					'bed_id': f"bed_{len(self.player.cat_bed_inventory[bed_type]) + 1}",
+					'owner_cat': selected_cat['name'],
+					'owner_id': selected_cat['id']
+				}
+				
+				self.player.cat_bed_inventory[bed_type].append(bed_data)
+				
+				from ..settings import CAT_BED_TYPES
+				bed_name = CAT_BED_TYPES[bed_type]['name']
+				print(f"[商店] 购买了 {bed_name} 给 {selected_cat['name']} (花费 {bed_price} 金币)")
+			else:
+				print("[商店] 没有可以绑定猫窝的猫咪")
+		else:
+			print(f"[商店] 金币不足，需要 {bed_price} 金币")
+	
+	def _get_available_cats_for_bed(self):
+		"""获取可以绑定猫窝的猫咪列表"""
+		available_cats = []
+		
+		# 从level获取猫咪管理器
+		try:
+			import pygame
+			from ..core.level import Level
+			
+			# 通过游戏中的level实例获取猫咪信息
+			# 这里需要一个更好的方法来获取猫咪列表
+			# 暂时使用简单的方法
+			
+			# 获取当前游戏实例中的猫咪
+			level = getattr(self.player, 'level', None)
+			if level and hasattr(level, 'cat_manager'):
+				cats = level.cat_manager.cats
+				
+				# 检查已有猫窝的猫咪
+				from ..systems.cat_bed import get_cat_bed_manager
+				cat_bed_manager = get_cat_bed_manager()
+				
+				for cat in cats:
+					# 检查这只猫是否已经有猫窝
+					existing_bed = cat_bed_manager.get_cat_bed_by_owner(cat.npc_id)
+					if not existing_bed:
+						available_cats.append({
+							'name': cat.cat_name,
+							'id': cat.npc_id
+						})
+		except Exception as e:
+			print(f"[商店] 获取猫咪列表失败: {e}")
+		
+		return available_cats
 
 	def show_entry(self, text_surf, amount, top, selected):
 
@@ -105,8 +193,17 @@ class Menu:
 		text_rect = text_surf.get_rect(midleft = (self.main_rect.left + 20,bg_rect.centery))
 		self.display_surface.blit(text_surf, text_rect)
 
-		# amount
-		amount_surf = self.font.render(str(amount), False, 'Black')
+		# amount or price
+		current_item = self.options[self.index] if selected else None
+		
+		if selected and current_item in self.cat_bed_options:
+			# 显示猫窝价格
+			from ..settings import PURCHASE_PRICES
+			price = PURCHASE_PRICES[current_item]
+			amount_surf = self.font.render(f"${price}", False, 'Black')
+		else:
+			amount_surf = self.font.render(str(amount), False, 'Black')
+		
 		amount_rect = amount_surf.get_rect(midright = (self.main_rect.right - 20,bg_rect.centery))
 		self.display_surface.blit(amount_surf, amount_rect)
 
@@ -126,6 +223,17 @@ class Menu:
 
 		for text_index, text_surf in enumerate(self.text_surfs):
 			top = self.main_rect.top + text_index * (text_surf.get_height() + (self.padding * 2) + self.space)
-			amount_list = list(self.player.item_inventory.values()) + list(self.player.seed_inventory.values())
-			amount = amount_list[text_index]
+			
+			# 获取数量或价格
+			item_name = self.options[text_index]
+			
+			if item_name in self.cat_bed_options:
+				# 猫窝显示价格
+				from ..settings import PURCHASE_PRICES
+				amount = PURCHASE_PRICES[item_name]
+			else:
+				# 普通物品显示数量
+				amount_list = list(self.player.item_inventory.values())
+				amount = amount_list[text_index]
+			
 			self.show_entry(text_surf, amount, top, self.index == text_index)

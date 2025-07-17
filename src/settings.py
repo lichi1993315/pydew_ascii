@@ -49,5 +49,33 @@ SALE_PRICES = {
 }
 PURCHASE_PRICES = {
 	'corn': 4,
-	'tomato': 5
+	'tomato': 5,
+	'simple_cat_bed': 100,    # 简易猫窝
+	'comfort_cat_bed': 200,   # 舒适猫窝
+	'luxury_cat_bed': 400,    # 豪华猫窝
+}
+
+# 猫窝类型配置
+CAT_BED_TYPES = {
+	'simple_cat_bed': {
+		'name': '简易猫窝',
+		'energy_restoration': 15,
+		'mood_bonus': 1,
+		'ascii_char': '🛏️',
+		'description': '基础的猫窝，提供基本的睡眠恢复'
+	},
+	'comfort_cat_bed': {
+		'name': '舒适猫窝',
+		'energy_restoration': 20,
+		'mood_bonus': 2,
+		'ascii_char': '🏠',
+		'description': '舒适的猫窝，提供更好的睡眠体验'
+	},
+	'luxury_cat_bed': {
+		'name': '豪华猫窝',
+		'energy_restoration': 25,
+		'mood_bonus': 3,
+		'ascii_char': '🏰',
+		'description': '豪华的猫窝，提供最佳的睡眠体验'
+	}
 }
