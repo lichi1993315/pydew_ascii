@@ -1116,20 +1116,15 @@ class Player(pygame.sprite.Sprite):
 				self.quest_panel.toggle()
 			
 			# 背包界面切换
-			if keys[pygame.K_b] and not self.timers.get('inventory', Timer(200)).active:
-				if 'inventory' not in self.timers:
-					self.timers['inventory'] = Timer(200)
+			if keys[pygame.K_b] and not self.timers['inventory'].active:
 				self.timers['inventory'].activate()
 				self.inventory_ui.toggle()
 
 			if keys[pygame.K_RETURN]:
 				collided_interaction_sprite = pygame.sprite.spritecollide(self,self.interaction,False)
 				if collided_interaction_sprite:
-					if collided_interaction_sprite[0].name == 'Trader':
-						self.toggle_shop()
-						# 记录进入商店行为
-						self.record_dialogue_behavior("商人", "欢迎来到我的商店！", "选择进入商店")
-					else:
+					# 只有床才能进入睡眠状态，移除商人的Enter键交互
+					if collided_interaction_sprite[0].name != 'Trader':
 						self.status = 'left_idle'
 						self.sleep = True
 						# 记录睡觉行为

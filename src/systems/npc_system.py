@@ -89,7 +89,7 @@ class TraderNPC(BaseNPC):
                 speaker=self.name,
                 text=greeting,
                 choices=[
-                    "我想买种子",
+                    "我想买猫窝",
                     "我想买鱼饵",
                     "我想卖东西", 
                     "查看鱼类收购价格",
@@ -413,9 +413,10 @@ class NPCManager:
         
         if stage == "main":
             # 主菜单选择
-            if choice_index == 0:  # 买种子
-                state["stage"] = "shop"
-                return self._handle_trader_shop(npc, player)
+            if choice_index == 0:  # 买猫窝
+                # 直接打开商店菜单
+                player.toggle_shop()
+                return [DialogueLine(npc.name, "欢迎来到我的商店！")]
             elif choice_index == 1:  # 买鱼饵
                 state["stage"] = "bait_shop"
                 return self._handle_trader_bait_shop(npc, player)

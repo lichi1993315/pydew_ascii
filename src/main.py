@@ -147,8 +147,9 @@ class Game:
 			
 			if event.type == pygame.KEYDOWN:
 				if event.key == pygame.K_ESCAPE:
-					self.show_menu = True
-					self.level = None
+					pass
+					# self.show_menu = True
+					# self.level = None
 				elif event.key == pygame.K_c:
 					# C键切换聊天面板
 					if self.level:

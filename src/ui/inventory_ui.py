@@ -114,7 +114,7 @@ class InventoryUI:
             self.input_timer.activate()
         
         # 关闭背包
-        elif keys[pygame.K_ESCAPE] or keys[pygame.K_b]:
+        elif keys[pygame.K_ESCAPE]:
             self.toggle()
             self.input_timer.activate()
     
