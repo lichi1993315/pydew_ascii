@@ -943,18 +943,22 @@ class CatInfoUI:
     
     def _get_cat_personality_description(self):
         """获取猫咪性格描述"""
-        personality_descriptions = {
-            "活泼好动，喜欢到处跑跳": "小吉总是充满活力，充满好奇心，而且喜欢玩耍。他大部分时间都在研究各种东西和到处奔跑，而怎么想都很难让它保持安静。下次能和他一起做些什么活动吗？",
-            "温顺安静，喜欢晒太阳": "小白是一只非常温和安静的猫咪，喜欢在阳光下慵懒地休息。性格温顺，不喜欢太多的打扰。",
-            "好奇心强，喜欢探索新事物": "小黑对世界充满好奇，总是想要探索新的地方和事物。喜欢冒险，但有时会因为太好奇而惹麻烦。",
-            "慵懒可爱，总是想睡觉": "小灰是一只特别爱睡觉的猫咪，大部分时间都在打盹。动作缓慢，但非常可爱。",
-            "聪明机灵，会各种小把戏": "小花是一只聪明的猫咪，学东西很快，还会一些有趣的小把戏。喜欢展示自己的聪明才智。",
-            "粘人撒娇，喜欢被摸摸": "咪咪非常亲人，喜欢被抚摸和拥抱。总是缠着主人撒娇，是一只非常粘人的猫咪。",
-            "独立自主，有自己的想法": "喵喵很独立，有自己的生活方式和想法。不太依赖别人，喜欢按照自己的节奏生活。",
-            "贪吃小猫，对食物很敏感": "球球对食物特别敏感，总是在寻找好吃的。胃口很好，但也因此变得圆滚滚的。",
-            "胆小害羞，容易受到惊吓": "毛毛比较胆小，容易受到惊吓。需要温柔对待，一旦熟悉了就会很亲近。",
-            "淘气捣蛋，喜欢恶作剧": "糖糖是一只调皮的猫咪，喜欢恶作剧和制造小麻烦。虽然淘气，但非常有趣。"
-        }
+        # 直接返回从cat_info.csv中获取的personality信息
+        if hasattr(self.current_cat, 'cat_personality') and self.current_cat.cat_personality:
+            return self.current_cat.cat_personality
         
-        return personality_descriptions.get(self.current_cat.cat_personality, 
-                                          "这是一只可爱的猫咪，有着独特的性格。")
+        # 如果没有cat_personality属性，尝试从猫咪数据管理器获取
+        try:
+            from src.data.cat_data import get_cat_data_manager
+            cat_data_manager = get_cat_data_manager()
+            
+            # 通过名字查找猫咪信息
+            if hasattr(self.current_cat, 'cat_name') and self.current_cat.cat_name:
+                cat_info = cat_data_manager.get_cat_by_name(self.current_cat.cat_name)
+                if cat_info and cat_info.personality:
+                    return cat_info.personality
+        except Exception as e:
+            print(f"[CatInfoUI] 无法获取猫咪数据: {e}")
+        
+        # 最后的回退
+        return "这是一只可爱的猫咪，有着独特的性格。"

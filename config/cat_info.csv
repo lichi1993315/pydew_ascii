@@ -1,0 +1,24 @@
+id,name,name_en,personality,personality_en,rarity,color_r,color_g,color_b,ascii_char,catch_rate,category,breed,breed_en
+elegant_cat,洛芙蒂,Lovely,举止优雅气质高贵总是保持完美的仪态,Elegant and noble with perfect posture,uncommon,150,150,150,🐈,0.025,classic,月光猫,Moonlight
+meng_meng_cat,糖果咪,Candy,天真可爱总是用无辜的大眼睛看着你,Innocent and cute with big innocent eyes,common,255,200,150,🐱,0.035,classic,糖霜猫,Sugarfrost
+joy_cat,烈焰喵,Blaze,永远充满活力是天生的开心果,Always energetic natural happiness bringer,common,255,220,100,😺,0.030,classic,阳光猫,Sunshine
+giggly_cat,嘻莎,Giggles,总是在偷笑似乎知道什么有趣的秘密,Always giggling like knowing funny secrets,uncommon,255,180,200,😸,0.020,classic,欢笑猫,Giggling
+lovey_cat,月眠夏,Luna,容易被美好的事物迷住眼中总是闪着星星,Easily mesmerized by beautiful things with starry eyes,rare,255,100,150,😻,0.012,classic,星辰猫,Starlight
+kissy_cat,亲亲猫,Kissy,非常亲近人类喜欢用鼻子轻触表达爱意,Very affectionate loves to nuzzle to express love,uncommon,255,150,100,😽,0.018,classic,天使猫,Angel
+shadow_cat,夜影,Shadow,神秘莫测在黑暗中行动自如拥有不可思议的能力,Mysterious moves freely in darkness with incredible abilities,epic,30,30,30,🐈‍⬛,0.008,classic,暗影猫,Shadow
+tiger_cat,虎斑,Tiger,勇敢威武拥有老虎般的气势但猫咪般的温柔,Brave and mighty with tiger presence but cat gentleness,epic,255,165,0,🐅,0.006,wild,虎纹猫,Tiger
+mask_cat,盗影,Bandit,聪明狡猾喜欢翻垃圾桶寻找宝贝双手特别灵巧,Smart and cunning loves rummaging for treasures with nimble hands,rare,120,120,120,🦝,0.010,wild,面具猫,Masked
+sly_cat,狐媚儿,Vixen,机智过人眼神中总是闪烁着智慧的光芒,Extremely clever with wisdom sparkling in eyes,rare,255,140,0,🦊,0.009,wild,幻狐猫,Phantom
+curly_cat,卷卷,Curly,毛发蓬松卷曲总是精心打理自己的外表,Fluffy curly fur always carefully grooming appearance,uncommon,200,200,200,🐩,0.015,pet,卷毛猫,Curly
+guard_cat,守护者,Guardian,忠诚可靠总是守护在主人身边责任感很强,Loyal and reliable always protecting master with strong responsibility,rare,139,69,19,🐕‍🦺,0.008,pet,守护猫,Guardian
+guide_cat,引路星,Pathfinder,善于指引方向是迷路者的好伙伴,Good at guidance best companion for lost travelers,rare,255,215,0,🦮,0.007,pet,引路猫,Guide
+dragon_cat,龙吟,Dragon,传说中的龙之血脉拥有神秘的力量和威严的气质,Legendary dragon bloodline with mysterious power and majestic aura,legendary,255,0,0,🐉,0.002,legend,龙血猫,Dragonblood
+stripe_cat,斑纹,Stripe,身上有美丽的条纹图案奔跑速度极快,Beautiful striped patterns with incredibly fast running speed,epic,255,255,255,🦓,0.004,legend,雷电猫,Lightning
+piggy_cat,懒懒,Sleepy,超级懒惰一天能睡20个小时但睡姿特别可爱,Super lazy can sleep 20 hours but sleeping poses are adorable,common,255,192,203,🐖,0.025,farm,梦境猫,Dreamy
+bleaty_cat,咩咩,Bleaty,温顺善良叫声像小羊一样软糯毛发特别蓬松,Gentle and kind with soft sheep-like voice and fluffy fur,uncommon,255,255,240,🐐,0.020,farm,羊角猫,Horned
+hoppy_cat,蹦蹦,Hoppy,活泼好动总是蹦蹦跳跳耳朵特别长,Lively and active always bouncing with especially long ears,uncommon,210,180,140,🐇,0.018,farm,月兔猫,Moonrabbit
+bouncy_cat,跳跳喵,Bouncy,跳跃能力惊人能一跃三尺高尾巴特别有力,Amazing jumping ability can leap three feet high with powerful tail,rare,160,82,45,🦘,0.008,farm,袋鼠猫,Kangaroo
+hippo_cat,嘟嘟喵,Hippo,嘴巴特别大喜欢在水中游泳性格温和憨厚,Especially big mouth loves swimming in water gentle and honest,epic,128,128,128,🦛,0.005,farm,河马猫,Hippo
+camel_cat,沙漠行者,Desert,能够在沙漠中生存背上有可爱的小驼峰很耐旱,Can survive in desert with cute small hump very drought resistant,rare,210,180,140,🐫,0.007,farm,驼峰猫,Camel
+moo_cat,哞哞喵,Moo,体型较大但性格温顺叫声低沉有力黑白斑点很美丽,Large size but gentle temperament deep powerful voice beautiful spots,uncommon,255,255,255,🐂,0.015,farm,牧牛猫,Cattle
+antler_cat,森林精灵,Forest,头上长着优美的角动作优雅如舞者是森林的精灵,Beautiful antlers elegant dancer movements forest spirit,epic,139,69,19,🦌,0.006,farm,鹿角猫,Antler

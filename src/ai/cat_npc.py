@@ -5,11 +5,13 @@ from ..settings import *
 from ..rendering.ascii_sprites import ASCIINPC
 from ..utils.emoji_colorizer import EmojiColorizer  # 导入emoji着色工具
 from ..systems.cat_event_system import CatEventSystem  # 导入事件系统
+from ..data.cat_data import get_cat_data_manager, CatInfo  # 导入统一猫咪数据
+from ..systems.bait_workbench import get_bait_workbench
 
 class CatNPC(ASCIINPC):
     """猫咪NPC类 - 继承自ASCIINPC并添加移动功能"""
     
-    def __init__(self, pos, npc_id, npc_manager, groups, cat_name, cat_personality, collision_sprites=None):
+    def __init__(self, pos, npc_id, npc_manager, groups, cat_name, cat_personality, collision_sprites=None, cat_info=None):
         super().__init__(pos, npc_id, npc_manager, groups)
         
         # 猫咪特有属性
@@ -38,8 +40,12 @@ class CatNPC(ASCIINPC):
         self.world_bounds = pygame.Rect(64, 64, 1472, 1472)  # 留出边界缓冲
         
         # 移动状态
-        self.movement_state = "idle"  # idle, moving, sitting
+        self.movement_state = "idle"  # idle, moving, sitting, moving_to_workbench
         self.state_timer = 0
+        
+        # 工作台相关属性
+        self.caught_insect = None  # 抓到的昆虫信息
+        self.workbench_target = None  # 目标工作台
         
         # 猫猫社交相关属性
         self.social_interaction_distance = 80  # 社交互动距离
@@ -52,26 +58,30 @@ class CatNPC(ASCIINPC):
         # 猫猫对话历史（用于存储猫猫之间的对话）
         self.cat_conversations = {}  # {other_cat_id: [conversation_entries...]}
         
-        # ASCII字符设定
-        self.ascii_char = random.choice(['🐈', '🐱', '😺', '😸', '😻', '😽', '🐈‍⬛', '🐅', '🦝', '🦊', '🐩', '🐕‍🦺', '🦮','🐉', '🦓','🐖','🐐','🐇','🦘','🦛','🐫','🐂','🦌'])
-        
-        # 猫咪皮肤颜色系统 - 使用EmojiColorizer着色
-        self.skin_colors = [
-            (255, 200, 100),  # 橙猫
-            (200, 200, 200),  # 灰猫
-            (255, 255, 255),  # 白猫
-            (100, 100, 100),  # 黑猫
-            (150, 100, 50),   # 棕猫
-            (255, 150, 150),  # 粉猫
-            (255, 220, 177),  # 浅橙色
-            (139, 69, 19),    # 巧克力色
-            (255, 192, 203),  # 粉色
-            (230, 230, 250),  # 薰衣草色
-            (255, 215, 0),    # 金色
-            (128, 128, 128),  # 深灰
-        ]
-        self.skin_color = random.choice(self.skin_colors)  # 随机选择皮肤颜色
-        self.char_color = self.skin_color
+        # 使用统一猫咪数据的ASCII字符和颜色，如果没有则使用默认值
+        if cat_info:
+            self.ascii_char = cat_info.ascii_char
+            self.skin_color = cat_info.color
+            self.char_color = cat_info.color
+        else:
+            # 备用随机设定
+            self.ascii_char = random.choice(['🐈', '🐱', '😺', '😸', '😻', '😽', '🐈‍⬛', '🐅', '🦝', '🦊', '🐩', '🐕‍🦺', '🦮','🐉', '🦓','🐖','🐐','🐇','🦘','🦛','🐫','🐂','🦌'])
+            self.skin_colors = [
+                (255, 200, 100),  # 橙猫
+                (200, 200, 200),  # 灰猫
+                (255, 255, 255),  # 白猫
+                (100, 100, 100),  # 黑猫
+                (150, 100, 50),   # 棕猫
+                (255, 150, 150),  # 粉猫
+                (255, 220, 177),  # 浅橙色
+                (139, 69, 19),    # 巧克力色
+                (255, 192, 203),  # 粉色
+                (230, 230, 250),  # 薰衣草色
+                (255, 215, 0),    # 金色
+                (128, 128, 128),  # 深灰
+            ]
+            self.skin_color = random.choice(self.skin_colors)  # 随机选择皮肤颜色
+            self.char_color = self.skin_color
         
         print(f"[CatNPC] {cat_name} 的皮肤颜色: {self.skin_color}")  # 调试输出
 
@@ -161,6 +171,55 @@ class CatNPC(ASCIINPC):
         # 输出初始化总结
         cached_states = [state for state, surface in self.colored_emoji_cache.items() if surface is not None]
         print(f"[CatNPC] {self.cat_name} 初始化完成: {len(cached_states)}/{len(self.colored_emoji_cache)} 状态已缓存")
+    
+    def _update_workbench_movement(self, dt):
+        """更新前往工作台的移动逻辑"""
+        if self.target_pos is None or self.workbench_target is None:
+            return
+        
+        current_pos = pygame.math.Vector2(self.rect.center)
+        distance_to_target = current_pos.distance_to(self.target_pos)
+        
+        # 如果接近工作台
+        if distance_to_target < 40:
+            self._deliver_insect_to_workbench()
+            return
+        
+        # 计算朝向工作台的方向
+        direction = (self.target_pos - current_pos)
+        if direction.magnitude() > 0:
+            self.direction = direction.normalize()
+        
+        # 移动（使用与普通移动相同的逻辑）
+        self.pos.x += self.direction.x * self.move_speed * dt
+        self.hitbox.centerx = round(self.pos.x)
+        self.rect.centerx = self.hitbox.centerx
+        self.collision('horizontal')
+        
+        self.pos.y += self.direction.y * self.move_speed * dt
+        self.hitbox.centery = round(self.pos.y)
+        self.rect.centery = self.hitbox.centery
+        self.collision('vertical')
+    
+    def _deliver_insect_to_workbench(self):
+        """将虫子送到工作台"""
+        if self.caught_insect and self.workbench_target:
+            # 将虫子添加到工作台存储
+            self.workbench_target.add_insect(self.caught_insect['id'], 1)
+            
+            print(f"🐱 {self.cat_name} 将 {self.caught_insect['name']} 放到了工作台")
+            
+            # 显示满足的表情
+            self.force_head_emoji('😊', 2.0)
+            
+            # 清除虫子和工作台目标
+            self.caught_insect = None
+            self.workbench_target = None
+            self.target_pos = None
+            
+            # 返回正常状态
+            self.movement_state = "idle"
+            self.state_timer = random.uniform(2, 5)  # 休息一会儿
     
     def _set_random_target(self):
         """设置随机移动目标"""
@@ -285,6 +344,8 @@ class CatNPC(ASCIINPC):
         # 根据状态执行行为
         if self.movement_state == "moving":
             self._update_movement(dt)
+        elif self.movement_state == "moving_to_workbench":
+            self._update_workbench_movement(dt)
         elif self.movement_state == "idle":
             # 闲置状态，偶尔小幅度移动
             if random.random() < 0.01:  # 1%概率小移动
@@ -775,29 +836,20 @@ class CatManager:
     
     def __init__(self):
         self.cats = []
-        self.cat_names = [
-            "小橘", "小白", "小黑", "小灰", "小花",
-            "咪咪", "喵喵", "球球", "毛毛", "糖糖"
-        ]
         
-        self.cat_personalities = [
-            "活泼好动，喜欢到处跑跳",
-            "温顺安静，喜欢晒太阳",
-            "好奇心强，喜欢探索新事物",
-            "慵懒可爱，总是想睡觉",
-            "聪明机灵，会各种小把戏",
-            "粘人撒娇，喜欢被摸摸",
-            "独立自主，有自己的想法",
-            "贪吃小猫，对食物很敏感",
-            "胆小害羞，容易受到惊吓",
-            "淘气捣蛋，喜欢恶作剧"
-        ]
+        # 使用统一的猫咪数据管理器
+        self.cat_data_manager = get_cat_data_manager()
         
         # 初始化事件系统
         self.event_system = CatEventSystem()
         self.event_check_timer = 0
         self.event_check_interval = 1.0  # 每秒检查一次事件
         self.event_notification_manager = None  # 将在level中设置
+        
+        # 昆虫捕捉系统
+        self.insect_catch_timer = 0
+        self.insect_catch_interval = 5.0  # 每5秒检查一次昆虫捕捉
+        self.last_insect_catch_time = 0
     
     def create_cats(self, all_sprites, collision_sprites, npc_sprites, npc_manager, player_pos=None, initial_cats=0):
         """创建猫咪NPC
@@ -827,15 +879,11 @@ class CatManager:
     
     def _create_single_cat(self, player_pos, cat_index=None):
         """创建单只猫咪"""
-        if cat_index is None:
-            cat_index = len(self.cats)
+        # 从统一数据管理器获取随机猫咪信息
+        cat_info = self.cat_data_manager.get_random_cat()
         
-        # 确保不超过可用名称数量
-        if cat_index >= len(self.cat_names):
-            cat_index = cat_index % len(self.cat_names)
-        
-        cat_name = self.cat_names[cat_index]
-        cat_personality = self.cat_personalities[cat_index]
+        cat_name = cat_info.name
+        cat_personality = cat_info.personality
         
         # 智能选择spawn位置
         spawn_pos = self._find_valid_spawn_position(
@@ -846,8 +894,8 @@ class CatManager:
             print(f"[CatManager] 警告: 无法为猫咪 {cat_name} 找到有效位置，跳过创建")
             return None
         
-        # 创建猫咪NPC ID
-        cat_id = f"cat_{len(self.cats)+1:02d}"
+        # 创建猫咪NPC ID - 使用猫咪名字确保与统一数据系统一致
+        cat_id = f"cat_{cat_name}"
         
         # 创建猫咪NPC
         cat = CatNPC(
@@ -857,7 +905,8 @@ class CatManager:
             groups=[self.all_sprites, self.npc_sprites],  # 不加入collision_sprites，猫咪可以重叠
             cat_name=cat_name,
             cat_personality=cat_personality,
-            collision_sprites=self.collision_sprites  # 传递碰撞精灵组
+            collision_sprites=self.collision_sprites,  # 传递碰撞精灵组
+            cat_info=cat_info  # 传递统一的猫咪信息
         )
         
         # 给猫咪设置管理器引用，用于找到其他猫咪
@@ -1048,13 +1097,20 @@ class CatManager:
         return nearest_cat, min_distance if nearest_cat else None
     
     def update(self, dt):
-        """更新猫咪管理器，包括事件系统检查"""
+        """更新猫咪管理器，包括事件系统检查和昆虫捕捉"""
         # 更新事件检查计时器
         self.event_check_timer += dt
         
         if self.event_check_timer >= self.event_check_interval:
             self.event_check_timer = 0
             self._check_cat_events()
+        
+        # 更新昆虫捕捉计时器
+        self.insect_catch_timer += dt
+        
+        if self.insect_catch_timer >= self.insect_catch_interval:
+            self.insect_catch_timer = 0
+            self._check_insect_catching()
     
     def _check_cat_events(self):
         """检查猫咪事件"""
@@ -1136,6 +1192,86 @@ class CatManager:
         for participant in event_result.participants:
             print(f"[CatManager] 参与者: {participant}")
     
+    def _check_insect_catching(self):
+        """检查猫咪昆虫捕捉"""
+        if not self.cats:
+            return
+        
+        from ..systems.bait_system import get_bait_system
+        bait_system = get_bait_system()
+        
+        # 每只猫都有机会抓昆虫
+        for cat in self.cats:
+            # 每只猫每次检查有20%的基础概率尝试抓昆虫
+            if random.random() < 0.2:
+                self._cat_try_catch_insect(cat, bait_system)
+    
+    def _cat_try_catch_insect(self, cat, bait_system):
+        """单只猫尝试抓昆虫"""
+        # 根据昆虫的捕获概率随机选择一种昆虫
+        insect_types = bait_system.insect_types
+        
+        # 创建加权随机选择列表
+        weighted_insects = []
+        for insect_id, insect in insect_types.items():
+            # 使用概率作为权重，概率越高越容易被选中
+            weight = int(insect.catch_probability * 100)
+            weighted_insects.extend([insect_id] * weight)
+        
+        if not weighted_insects:
+            return
+        
+        # 随机选择一种昆虫
+        selected_insect_id = random.choice(weighted_insects)
+        selected_insect = insect_types[selected_insect_id]
+        
+        # 根据昆虫的捕获概率决定是否成功抓到
+        if random.random() <= selected_insect.catch_probability:
+            # 成功抓到昆虫，但不直接放入鱼饵系统
+            # 而是让猫咪先持有，然后移动到工作台
+            cat.caught_insect = {
+                'id': selected_insect_id,
+                'name': selected_insect.name,
+                'ascii_char': selected_insect.ascii_char
+            }
+            
+            # 猫咪显示开心表情
+            cat.force_head_emoji('😸', 3.0)
+            
+            print(f"🐱 {cat.cat_name} 抓到了 {selected_insect.name}！正在前往工作台...")
+            
+            # 设置猫咪移动到工作台
+            self._send_cat_to_workbench(cat)
+            
+            # 如果有事件通知管理器，显示通知
+            if self.event_notification_manager:
+                self.event_notification_manager.add_notification(
+                    f"🐱 {cat.cat_name} 抓到了 {selected_insect.ascii_char} {selected_insect.name}！",
+                    duration=3.0,
+                    notification_type="insect_catch"
+                )
+    
+    def _send_cat_to_workbench(self, cat):
+        """让猫咪移动到工作台"""
+        
+        workbench = get_bait_workbench()
+        
+        if workbench:
+            # 设置猫咪的目标位置为工作台
+            cat.target_pos = workbench.workbench_pos.copy()
+            cat.movement_state = "moving_to_workbench"
+            cat.workbench_target = workbench
+            
+            print(f"🐱 {cat.cat_name} 开始前往工作台 ({workbench.workbench_pos.x}, {workbench.workbench_pos.y})")
+        else:
+            print(f"⚠️ 找不到工作台，{cat.cat_name} 无法送虫子")
+            # 如果没有工作台，直接放入鱼饵系统（回退机制）
+            if hasattr(cat, 'caught_insect') and cat.caught_insect:
+                from ..systems.bait_system import get_bait_system
+                bait_system = get_bait_system()
+                bait_system.add_insect(cat.caught_insect['id'], 1)
+                cat.caught_insect = None
+
     def set_event_notification_manager(self, notification_manager):
         """设置事件通知管理器"""
         self.event_notification_manager = notification_manager

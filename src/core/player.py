@@ -70,6 +70,9 @@ class Player(pygame.sprite.Sprite):
 		self.bait_position = None  # 鱼饵在水中的位置
 		self.space_key_pressed = False  # 跟踪空格键状态，避免连续触发
 		self.current_catch_target = None  # 当前钓到的目标信息
+		
+		# 鱼饵相关
+		self.selected_bait_id = None  # 当前选中的鱼饵ID
 
 		# general setup
 		self.render_ascii_player()
@@ -477,7 +480,22 @@ class Player(pygame.sprite.Sprite):
 		"""
 		if self.fishing_state == "fish_hooked":
 			# 在小游戏开始前确定钓到的目标
-			self.current_catch_target = self.fish_system.catch_fish()
+			# 检查是否有选中的鱼饵并尝试使用
+			bait_id = None
+			if self.selected_bait_id:
+				from ..systems.bait_system import get_bait_system
+				bait_system = get_bait_system()
+				if bait_system.has_bait(self.selected_bait_id):
+					if bait_system.use_bait(self.selected_bait_id):
+						bait_id = self.selected_bait_id
+						print(f"🎣 使用了{bait_system.bait_types[self.selected_bait_id].name}")
+					else:
+						print(f"🎣 {bait_system.bait_types[self.selected_bait_id].name}使用失败")
+				else:
+					print(f"🎣 没有{bait_system.bait_types[self.selected_bait_id].name}了")
+					self.selected_bait_id = None
+			
+			self.current_catch_target = self.fish_system.catch_fish(bait_id)
 			
 			if self.current_catch_target:
 				# 转换为小游戏所需的格式
@@ -736,6 +754,65 @@ class Player(pygame.sprite.Sprite):
 			# 重置钓鱼状态
 			self._reset_fishing_state()
 	
+	def select_bait(self, bait_id: str):
+		"""
+		选择鱼饵
+		"""
+		from ..systems.bait_system import get_bait_system
+		bait_system = get_bait_system()
+		
+		if bait_id in bait_system.bait_types and bait_system.has_bait(bait_id):
+			self.selected_bait_id = bait_id
+			bait_name = bait_system.bait_types[bait_id].name
+			print(f"🎣 选择了鱼饵: {bait_name}")
+			if hasattr(self, 'chat_panel') and self.chat_panel:
+				self.chat_panel.add_system_message(f"🎣 选择了鱼饵: {bait_name}")
+			return True
+		else:
+			print(f"🎣 没有该鱼饵或鱼饵不存在")
+			return False
+	
+	def get_selected_bait_info(self):
+		"""
+		获取当前选中的鱼饵信息
+		"""
+		if not self.selected_bait_id:
+			return None
+		
+		from ..systems.bait_system import get_bait_system
+		bait_system = get_bait_system()
+		
+		if self.selected_bait_id in bait_system.bait_types:
+			bait_type = bait_system.bait_types[self.selected_bait_id]
+			count = bait_system.get_bait_count(self.selected_bait_id)
+			return {
+				'id': self.selected_bait_id,
+				'name': bait_type.name,
+				'count': count,
+				'description': bait_type.description
+			}
+		return None
+	
+	def get_available_baits(self):
+		"""
+		获取可用的鱼饵列表
+		"""
+		from ..systems.bait_system import get_bait_system
+		bait_system = get_bait_system()
+		
+		available_baits = []
+		for bait_id in bait_system.get_available_baits():
+			bait_type = bait_system.bait_types[bait_id]
+			count = bait_system.get_bait_count(bait_id)
+			available_baits.append({
+				'id': bait_id,
+				'name': bait_type.name,
+				'count': count,
+				'description': bait_type.description
+			})
+		
+		return available_baits
+
 	def get_total_fish_count(self):
 		"""
 		获取鱼类库存总数
@@ -899,6 +976,7 @@ class Player(pygame.sprite.Sprite):
 			elif objective_type == "catch_fish":
 				minimum_length = params.get("minimum_length", 0)
 				minimum_rarity = params.get("minimum_rarity", None)
+				required_num = params.get("num", 1)  # 获取需要的数量
 				
 				if minimum_length > 0:
 					current = self.fishing_contest_stats["max_fish_length"]

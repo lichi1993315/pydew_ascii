@@ -11,6 +11,7 @@ import httpx
 from typing import Dict, Optional, List
 from datetime import datetime
 from .ai_config_manager import get_config_manager
+from ..data.cat_data import get_cat_data_manager
 
 # 尝试导入相关库
 try:
@@ -64,7 +65,10 @@ class ChatAI:
         chat_settings = self.config_manager.get_chat_settings()
         self.max_history_length = chat_settings.get("conversation_history_length", 10)   # 最大保存的对话轮数
         
-        # NPC角色设定
+        # 加载统一的猫咪数据管理器
+        self.cat_data_manager = get_cat_data_manager()
+        
+        # NPC角色设定 - 基础NPC + 动态加载的猫咪
         self.npc_personalities = {
             "trader_zhang": {
                 "name": "商人张三",
@@ -83,71 +87,13 @@ class ChatAI:
                 "personality": "勤劳朴实的农夫，热爱土地，对农业很有经验",
                 "context": "小镇的农业专家，种植各种作物",
                 "speaking_style": "朴实的农民话语，喜欢谈论农作物和天气"
-            },
-            # 猫咪NPC设定
-            "cat_01": {
-                "name": "小橘",
-                "personality": "活泼好动的橘猫，喜欢到处跑跳，充满活力",
-                "context": "在小镇自由漫步的可爱橘猫",
-                "speaking_style": "活泼可爱的猫语，经常用'喵'开头"
-            },
-            "cat_02": {
-                "name": "小白",
-                "personality": "温顺安静的白猫，喜欢晒太阳，性格温和",
-                "context": "优雅的白猫，喜欢安静的地方",
-                "speaking_style": "温柔优雅的猫语，语气轻柔"
-            },
-            "cat_03": {
-                "name": "小黑",
-                "personality": "好奇心强的黑猫，喜欢探索新事物",
-                "context": "神秘的黑猫，总是在探索新的地方",
-                "speaking_style": "好奇的猫语，经常问问题"
-            },
-            "cat_04": {
-                "name": "小灰",
-                "personality": "慵懒可爱的灰猫，总是想睡觉",
-                "context": "懒洋洋的灰猫，大部分时间在休息",
-                "speaking_style": "慵懒的猫语，经常打哈欠"
-            },
-            "cat_05": {
-                "name": "小花",
-                "personality": "聪明机灵的花猫，会各种小把戏",
-                "context": "聪明的花猫，喜欢展示自己的技能",
-                "speaking_style": "聪明的猫语，喜欢炫耀自己"
-            },
-            "cat_06": {
-                "name": "咪咪",
-                "personality": "粘人撒娇的猫咪，喜欢被摸摸",
-                "context": "非常亲人的猫咪，喜欢与人类互动",
-                "speaking_style": "撒娇的猫语，经常求抚摸"
-            },
-            "cat_07": {
-                "name": "喵喵",
-                "personality": "独立自主的猫，有自己的想法",
-                "context": "独立的猫咪，有自己的生活方式",
-                "speaking_style": "独立的猫语，不太依赖他人"
-            },
-            "cat_08": {
-                "name": "球球",
-                "personality": "贪吃的小猫，对食物很敏感",
-                "context": "总是在寻找食物的圆滚滚猫咪",
-                "speaking_style": "贪吃的猫语，经常提到食物"
-            },
-            "cat_09": {
-                "name": "毛毛",
-                "personality": "胆小害羞的猫，容易受到惊吓",
-                "context": "害羞的长毛猫，不太敢接近陌生人",
-                "speaking_style": "胆怯的猫语，说话小心翼翼"
-            },
-            "cat_10": {
-                "name": "糖糖",
-                "personality": "淘气捣蛋的猫，喜欢恶作剧",
-                "context": "调皮的猫咪，总是制造小麻烦",
-                "speaking_style": "调皮的猫语，充满恶作剧精神"
             }
         }
         
-        # 模拟回复模板
+        # 动态加载猫咪角色设定
+        self._load_cat_personalities()
+        
+        # 模拟回复模板 - 基础NPC + 动态加载的猫咪
         self.mock_responses = {
             "trader_zhang": [
                 "你好！需要买点什么吗？我这里有最新鲜的种子！",
@@ -166,69 +112,11 @@ class ChatAI:
                 "看这天气，明天应该会下雨，对庄稼有好处。",
                 "土地是我们的根本，要好好爱护她。",
                 "年轻人，农业可是门大学问！"
-            ],
-            # 猫咪回复
-            "cat_01": [
-                "喵！你好呀，我是小橘！",
-                "喵喵～想和我一起玩吗？",
-                "橘猫最可爱了，喵！",
-                "跑跑跳跳真开心，喵～"
-            ],
-            "cat_02": [
-                "喵...你好，我是小白...",
-                "今天的阳光真温暖呢，喵...",
-                "安安静静最舒服了，喵～",
-                "轻轻的摸摸头就好，喵..."
-            ],
-            "cat_03": [
-                "喵？你是谁？好奇怪的人类...",
-                "这里有什么好玩的吗，喵？",
-                "我要去探索新地方了，喵！",
-                "黑猫也很可爱的，喵～"
-            ],
-            "cat_04": [
-                "喵...好困啊...哈欠～",
-                "让我再睡一会儿嘛，喵...",
-                "懒懒的最舒服了，喵～",
-                "不想动...只想睡觉，喵..."
-            ],
-            "cat_05": [
-                "喵！看我的新把戏！",
-                "我很聪明的，什么都会，喵～",
-                "花猫就是比别的猫厉害，喵！",
-                "要不要看我翻跟头，喵？"
-            ],
-            "cat_06": [
-                "喵～摸摸我嘛～",
-                "我最喜欢人类了，喵！",
-                "抱抱我好不好，喵～",
-                "咪咪要被宠爱，喵！"
-            ],
-            "cat_07": [
-                "喵...我有自己的事要做...",
-                "独立的猫不需要别人照顾，喵。",
-                "我按自己的方式生活，喵～",
-                "别太粘人，保持距离比较好，喵。"
-            ],
-            "cat_08": [
-                "喵！你有食物吗？",
-                "肚子好饿啊，有小鱼干吗，喵？",
-                "球球要吃好吃的，喵～",
-                "闻到香味了，在哪里呢，喵？"
-            ],
-            "cat_09": [
-                "喵...不要靠太近...",
-                "我有点害怕陌生人，喵...",
-                "请温柔一点好吗，喵...",
-                "毛毛很胆小的，喵..."
-            ],
-            "cat_10": [
-                "喵嘿嘿！要不要看我恶作剧？",
-                "糖糖最会捣蛋了，喵！",
-                "今天又搞了什么坏事呢，喵～",
-                "调皮才有趣，你说对吧，喵？"
             ]
         }
+        
+        # 动态加载猫咪回复
+        self._load_cat_mock_responses()
         
         self._initialize_clients()
         self._set_active_model(self.model_type)
@@ -738,6 +626,169 @@ class ChatAI:
             "recent_topics": [msg["message"][:50] + "..." if len(msg["message"]) > 50 else msg["message"] 
                             for msg in history[-3:]]
         }
+    
+    def _load_cat_personalities(self):
+        """动态加载猫咪角色设定"""
+        all_cats = self.cat_data_manager.get_all_cats()
+        
+        for cat_info in all_cats:
+            # 根据性格生成说话风格
+            speaking_style = self._generate_speaking_style(cat_info.personality)
+            
+            # 生成角色ID（简化版，用于匹配）
+            cat_id = self._get_cat_id_from_name(cat_info.name)
+            
+            self.npc_personalities[cat_id] = {
+                "name": cat_info.name,
+                "personality": cat_info.personality,
+                "context": f"在小镇自由漫步的{cat_info.name}，{cat_info.personality}",
+                "speaking_style": speaking_style
+            }
+        
+        print(f"[ChatAI] 加载了 {len(all_cats)} 只猫咪的角色设定")
+    
+    def _load_cat_mock_responses(self):
+        """动态加载猫咪模拟回复"""
+        all_cats = self.cat_data_manager.get_all_cats()
+        
+        for cat_info in all_cats:
+            cat_id = self._get_cat_id_from_name(cat_info.name)
+            responses = self._generate_cat_responses(cat_info)
+            self.mock_responses[cat_id] = responses
+        
+        print(f"[ChatAI] 加载了 {len(all_cats)} 只猫咪的模拟回复")
+    
+    def _generate_speaking_style(self, personality: str) -> str:
+        """根据性格生成说话风格"""
+        if "优雅" in personality or "高贵" in personality:
+            return "优雅的猫语，语气高贵"
+        elif "活泼" in personality or "活力" in personality:
+            return "活泼的猫语，充满活力"
+        elif "天真" in personality or "可爱" in personality:
+            return "天真可爱的猫语，声音软糯"
+        elif "神秘" in personality or "黑暗" in personality:
+            return "神秘的猫语，深沉低调"
+        elif "聪明" in personality or "狡猾" in personality:
+            return "聪明的猫语，话中有话"
+        elif "懒" in personality or "睡" in personality:
+            return "慵懒的猫语，经常打哈欠"
+        elif "温顺" in personality or "善良" in personality:
+            return "温顺的猫语，语气轻柔"
+        elif "勇敢" in personality or "威武" in personality:
+            return "威武的猫语，气势十足"
+        else:
+            return "可爱的猫语，经常用'喵'结尾"
+    
+    def _generate_cat_responses(self, cat_info) -> List[str]:
+        """根据猫咪信息生成回复"""
+        name = cat_info.name
+        personality = cat_info.personality
+        
+        # 基础回复模板
+        base_responses = [
+            f"喵！你好呀，我是{name}！",
+            f"喵～想了解{name}吗？",
+            f"今天天气真好呢，喵～",
+            f"{name}很高兴见到你，喵！"
+        ]
+        
+        # 根据性格添加特定回复
+        personality_responses = []
+        
+        if "优雅" in personality or "高贵" in personality:
+            personality_responses.extend([
+                f"请保持优雅的姿态，喵～",
+                f"我是高贵的{name}，喵。",
+                f"举止要得体哦，喵～"
+            ])
+        elif "活泼" in personality or "活力" in personality:
+            personality_responses.extend([
+                f"一起来玩吧，喵！",
+                f"跑跑跳跳真开心，喵～",
+                f"今天也很有活力呢，喵！"
+            ])
+        elif "天真" in personality or "可爱" in personality:
+            personality_responses.extend([
+                f"用大眼睛看着你，喵～",
+                f"好可爱的人类呀，喵！",
+                f"天真无邪地看着你，喵～"
+            ])
+        elif "神秘" in personality or "黑暗" in personality:
+            personality_responses.extend([
+                f"在黑暗中注视着你...喵",
+                f"我有神秘的能力，喵...",
+                f"不可思议的事情即将发生，喵..."
+            ])
+        elif "聪明" in personality or "机智" in personality:
+            personality_responses.extend([
+                f"我很聪明的，什么都知道，喵～",
+                f"智慧的光芒在眼中闪烁，喵！",
+                f"要不要看看我的聪明才智，喵？"
+            ])
+        elif "懒" in personality or "睡" in personality:
+            personality_responses.extend([
+                f"喵...好困啊...哈欠～",
+                f"让我再睡一会儿嘛，喵...",
+                f"懒懒的最舒服了，喵～"
+            ])
+        elif "温顺" in personality or "善良" in personality:
+            personality_responses.extend([
+                f"轻轻地靠近你，喵～",
+                f"温顺地看着你，喵...",
+                f"善良的心在温暖着大家，喵～"
+            ])
+        elif "勇敢" in personality or "威武" in personality:
+            personality_responses.extend([
+                f"勇敢地保护大家，喵！",
+                f"威武霸气的{name}，喵！",
+                f"勇气是我的力量，喵～"
+            ])
+        else:
+            # 默认可爱回复
+            personality_responses.extend([
+                f"做个可爱的表情，喵～",
+                f"平凡也是一种美好，喵！",
+                f"每天都很开心呢，喵～"
+            ])
+        
+        # 合并所有回复
+        all_responses = base_responses + personality_responses
+        return all_responses
+    
+    def _get_cat_id_from_name(self, cat_name: str) -> str:
+        """根据猫咪名字生成ID"""
+        # 使用猫咪的名字作为ID，确保与其他系统一致
+        return f"cat_{cat_name}"
+    
+    def register_dynamic_cat(self, cat_name: str, cat_personality: str):
+        """动态注册新的猫咪（当从钓鱼获得新猫咪时调用）"""
+        cat_id = self._get_cat_id_from_name(cat_name)
+        speaking_style = self._generate_speaking_style(cat_personality)
+        
+        # 添加到角色设定
+        self.npc_personalities[cat_id] = {
+            "name": cat_name,
+            "personality": cat_personality,
+            "context": f"在小镇自由漫步的{cat_name}，{cat_personality}",
+            "speaking_style": speaking_style
+        }
+        
+        # 生成模拟回复
+        from ..data.cat_data import CatInfo
+        cat_info = CatInfo(
+            id=cat_id,
+            name=cat_name,
+            personality=cat_personality,
+            rarity='common',
+            color=(255, 255, 255),
+            ascii_char='🐱',
+            catch_rate=0.03,
+            category='classic'
+        )
+        responses = self._generate_cat_responses(cat_info)
+        self.mock_responses[cat_id] = responses
+        
+        print(f"[ChatAI] 动态注册新猫咪: {cat_name} ({cat_id})")
 
 # 全局聊天AI实例
 _chat_ai_instance = None

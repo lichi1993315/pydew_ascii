@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
+from src.data.cat_data import get_cat_data_manager, CatInfo
 
 @dataclass
 class Fish:
@@ -781,59 +782,75 @@ class FishSystem:
             'legendary': '传说'
         }
     
-    def catch_fish(self) -> Optional[Dict]:
+    def catch_fish(self, bait_id: str = None) -> Optional[Dict]:
         """
         尝试捕获一条鱼、猫咪或垃圾物品
         返回鱼/猫咪/垃圾的信息字典，如果没钓到返回None
+        
+        Args:
+            bait_id: 使用的鱼饵ID，影响钓鱼概率
         """
         # 首先检查是否钓到猫咪
-        cat_result = self.try_catch_cat()
+        cat_result = self.try_catch_cat(bait_id)
         if cat_result:
             return cat_result
         
         # 然后检查是否钓到垃圾物品
-        trash_result = self.try_catch_trash()
+        trash_result = self.try_catch_trash(bait_id)
         if trash_result:
             return trash_result
         
         # 如果没钓到猫和垃圾，尝试钓鱼
-        return self.try_catch_fish()
+        return self.try_catch_fish(bait_id)
     
-    def try_catch_cat(self) -> Optional[Dict]:
+    def try_catch_cat(self, bait_id: str = None) -> Optional[Dict]:
         """
-        尝试钓到猫咪
-        """
-        # 计算猫咪总概率
-        total_cat_rate = sum(cat.catch_rate for cat in self.cat_types.values())
+        尝试钓到猫咪（使用统一的猫咪数据）
         
-        # 随机判断是否钓到猫咪
+        Args:
+            bait_id: 使用的鱼饵ID，影响钓鱼概率
+        """
+        # 使用统一的猫咪数据管理器
+        cat_manager = get_cat_data_manager()
+        
+        # 首先计算总的猫咪捕获概率
+        all_cats = cat_manager.get_all_cats()
+        total_cat_catch_rate = sum(cat.catch_rate for cat in all_cats)
+        
+        # 如果使用了鱼饵，应用鱼饵修正
+        if bait_id:
+            from .bait_system import get_bait_system
+            bait_system = get_bait_system()
+            # 猫咪通常被稀有鱼饵吸引，使用rare级别的修正
+            bait_modifier = bait_system.get_fishing_probability_modifier(bait_id, 'rare')
+            total_cat_catch_rate *= bait_modifier
+        
+        # 随机判断是否钓到任何猫咪
         rand = random.random()
-        if rand <= total_cat_rate:
-            # 选择具体的猫咪类型
-            cat_rand = random.random() * total_cat_rate
-            current_rate = 0
-            
-            for cat_id, cat in self.cat_types.items():
-                current_rate += cat.catch_rate
-                if cat_rand <= current_rate:
-                    print(f"🎣✨ 奇迹发生了！钓到了一只 {cat.name}！")
-                    return {
-                        'type': 'cat',
-                        'id': cat_id,
-                        'name': cat.name,
-                        'personality': cat.personality,
-                        'rarity': cat.rarity,
-                        'rarity_name': self.rarity_names[cat.rarity],
-                        'color': cat.color,
-                        'ascii_char': cat.ascii_char,
-                        'description': f"一只{self.rarity_names[cat.rarity]}的小猫咪"
-                    }
+        if rand <= total_cat_catch_rate:
+            # 如果钓到了猫咪，使用权重随机选择一只
+            caught_cat = cat_manager.get_random_fishing_cat()
+            print(f"🎣✨ 奇迹发生了！钓到了一只 {caught_cat.name}！")
+            return {
+                'type': 'cat',
+                'id': caught_cat.id,
+                'name': caught_cat.name,
+                'personality': caught_cat.personality,
+                'rarity': caught_cat.rarity,
+                'rarity_name': self.rarity_names.get(caught_cat.rarity, caught_cat.rarity),
+                'color': caught_cat.color,
+                'ascii_char': caught_cat.ascii_char,
+                'description': f"一只{self.rarity_names.get(caught_cat.rarity, caught_cat.rarity)}的小猫咪"
+            }
         
         return None
     
-    def try_catch_trash(self) -> Optional[Dict]:
+    def try_catch_trash(self, bait_id: str = None) -> Optional[Dict]:
         """
         尝试钓到垃圾物品
+        
+        Args:
+            bait_id: 使用的鱼饵ID（垃圾不受鱼饵影响）
         """
         # 计算垃圾物品总概率
         total_trash_rate = sum(trash.catch_rate for trash in self.trash_types.values())
@@ -870,19 +887,51 @@ class FishSystem:
         
         return None
     
-    def try_catch_fish(self) -> Optional[Dict]:
+    def try_catch_fish(self, bait_id: str = None) -> Optional[Dict]:
         """
         尝试钓到鱼
+        
+        Args:
+            bait_id: 使用的鱼饵ID，影响不同稀有度鱼类的概率
         """
-        # 计算鱼类总概率
-        total_rate = sum(fish.catch_rate for fish in self.fish_types.values())
+        # 如果使用了鱼饵，需要重新计算概率
+        if bait_id:
+            from .bait_system import get_bait_system
+            bait_system = get_bait_system()
+            
+            # 按稀有度分组计算概率
+            rarity_rates = {}
+            for fish in self.fish_types.values():
+                rarity = fish.rarity
+                if rarity not in rarity_rates:
+                    rarity_rates[rarity] = 0
+                
+                # 应用鱼饵修正
+                bait_modifier = bait_system.get_fishing_probability_modifier(bait_id, rarity)
+                modified_rate = fish.catch_rate * bait_modifier
+                rarity_rates[rarity] += modified_rate
+            
+            # 计算总概率
+            total_rate = sum(rarity_rates.values())
+        else:
+            # 计算鱼类总概率（无鱼饵）
+            total_rate = sum(fish.catch_rate for fish in self.fish_types.values())
         
         # 随机选择
         rand = random.random() * total_rate
         current_rate = 0
         
         for fish_id, fish in self.fish_types.items():
-            current_rate += fish.catch_rate
+            # 计算这条鱼的实际概率（考虑鱼饵修正）
+            if bait_id:
+                from .bait_system import get_bait_system
+                bait_system = get_bait_system()
+                bait_modifier = bait_system.get_fishing_probability_modifier(bait_id, fish.rarity)
+                fish_rate = fish.catch_rate * bait_modifier
+            else:
+                fish_rate = fish.catch_rate
+            
+            current_rate += fish_rate
             if rand <= current_rate:
                 # 钓到这种鱼，生成具体信息
                 length = random.randint(fish.min_length, fish.max_length)

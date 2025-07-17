@@ -232,5 +232,9 @@
   "player_spawn": {
     "x": 640,
     "y": 360
+  },
+  "bait_workbench": {
+    "x": 1024,
+    "y": 1280
   }
 }

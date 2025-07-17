@@ -1,4 +1,5 @@
 import pygame 
+import math
 from src.settings import *
 from .player import Player
 from src.ui.overlay import Overlay
@@ -20,6 +21,7 @@ from src.ui.cat_info_ui import CatInfoUI  # 添加猫咪详情UI导入
 from src.ui.fishing_minigame import FishingMinigame  # 添加钓鱼小游戏导入
 from src.ui.catch_result_panel import CatchResultPanel  # 添加鱼获面板导入
 from src.ui.event_notification import EventNotificationManager  # 添加事件通知管理器导入
+from src.ui.bait_box_ui import BaitBoxUI  # 添加鱼饵箱UI导入
 from src.utils.font_manager import FontManager
 
 class Level:
@@ -75,6 +77,9 @@ class Level:
 		
 		# 事件通知管理器
 		self.event_notification_manager = EventNotificationManager()
+		
+		# 鱼饵箱UI
+		self.bait_box_ui = BaitBoxUI(SCREEN_WIDTH, SCREEN_HEIGHT)
 		
 		self.setup()
 		
@@ -219,6 +224,17 @@ class Level:
 
 			if obj.name == 'Trader':  # 商人（商店交互）
 				ASCIIInteraction((obj.x,obj.y), (obj.width,obj.height), self.interaction_sprites, obj.name)
+		
+		# 添加鱼饵工作台
+		bait_workbench_config = tmx_data.config.get('bait_workbench')
+		if bait_workbench_config:
+			from src.systems.bait_workbench import BaitWorkbench, set_bait_workbench
+			workbench = BaitWorkbench(
+				pos=(bait_workbench_config['x'], bait_workbench_config['y']),
+				groups=[self.all_sprites, self.interaction_sprites]
+			)
+			set_bait_workbench(workbench)
+			print(f"[Level] 鱼饵工作台已添加到位置: ({bait_workbench_config['x']}, {bait_workbench_config['y']})")
 
 		# 填充所有空白瓦片为草地背景
 		# 记录已占用的位置
@@ -391,6 +407,22 @@ class Level:
 			if distance <= interaction_distance:
 				# print(f"[猫咪交互] 玩家靠近猫咪: {cat.cat_name}, 距离: {distance:.1f}")
 				return cat
+		return None
+	
+	def check_workbench_interaction(self):
+		"""检查是否在工作台附近可以交互"""
+		from src.systems.bait_workbench import get_bait_workbench
+		workbench = get_bait_workbench()
+		
+		if workbench:
+			player_pos = self.player.rect.center
+			workbench_pos = workbench.rect.center
+			
+			# 检查是否在工作台附近（100像素范围）
+			distance = math.sqrt((player_pos[0] - workbench_pos[0])**2 + (player_pos[1] - workbench_pos[1])**2)
+			if distance <= 100:
+				return workbench
+		
 		return None
 	
 	def start_npc_dialogue(self, npc):
@@ -672,6 +704,9 @@ class Level:
 		self.catch_result_panel.update(dt)
 		self.catch_result_panel.render(self.display_surface)
 		
+		# 鱼饵箱UI
+		self.bait_box_ui.draw(self.display_surface)
+		
 		# 事件通知渲染（放在最后，确保在最顶层显示）
 		self.event_notification_manager.render(self.display_surface)
 
@@ -794,6 +829,22 @@ class Level:
 		# 居中显示
 		bait_rect = bait_surface.get_rect(center=(screen_x, screen_y))
 		self.display_surface.blit(bait_surface, bait_rect)
+
+	def select_bait_by_index(self, index):
+		"""根据索引选择鱼饵"""
+		available_baits = self.player.get_available_baits()
+		
+		if 0 <= index < len(available_baits):
+			bait_info = available_baits[index]
+			success = self.player.select_bait(bait_info['id'])
+			if success:
+				self.chat_panel.add_system_message(f"选择了鱼饵: {bait_info['name']} (剩余: {bait_info['count']})")
+		else:
+			self.chat_panel.add_system_message("没有该索引的鱼饵")
+	
+	def handle_bait_box_events(self, event):
+		"""处理鱼饵箱UI事件"""
+		return self.bait_box_ui.handle_event(event)
 
 	def spawn_cat_from_chat(self):
 		"""

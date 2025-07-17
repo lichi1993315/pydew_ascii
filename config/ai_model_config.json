@@ -1,6 +1,6 @@
 {
   "ai_models": {
-    "default_model": "claude",
+    "default_model": "doubao",
     "fallback_model": "mock",
     "models": {
       "claude": {
@@ -43,7 +43,7 @@
       "reason": "中文对话表现更自然"
     },
     "human_npcs": {
-      "preferred_model": "claude",
+      "preferred_model": "doubao",
       "reason": "英文训练基础更强"
     }
   }

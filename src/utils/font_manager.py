@@ -121,12 +121,20 @@ class FontManager:
 		self._fonts[font_key] = font
 		return font
 	
-	def get_font(self, font_key):
+	def get_font(self, size_or_key):
 		"""
-		获取已加载的字体
+		获取字体 - 支持按大小或键名获取
+		如果传入数字，自动加载对应大小的中文字体
+		如果传入字符串，从缓存中获取对应键名的字体
 		"""
-		return self._fonts.get(font_key)
+		if isinstance(size_or_key, int):
+			# 按大小获取中文字体，自动加载如果不存在
+			return self.load_chinese_font(size_or_key)
+		else:
+			# 按键名从缓存获取字体
+			return self._fonts.get(size_or_key)
 	
+	@classmethod
 	@classmethod
 	def get_instance(cls):
 		"""
@@ -134,4 +142,12 @@ class FontManager:
 		"""
 		if cls._instance is None:
 			cls._instance = cls()
-		return cls._instance 
+		return cls._instance
+
+
+# 全局函数，用于获取字体管理器实例
+def get_font_manager():
+	"""
+	获取字体管理器单例实例
+	"""
+	return FontManager.get_instance() 

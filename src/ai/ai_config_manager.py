@@ -59,7 +59,7 @@ class AIConfigManager:
     
     def get_default_model(self) -> str:
         """获取默认模型"""
-        return self.config.get("ai_models", {}).get("default_model", "claude")
+        return self.config.get("ai_models", {}).get("default_model", "doubao")
     
     def get_fallback_model(self) -> str:
         """获取回退模型"""

@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple, Optional
 from abc import ABC, abstractmethod
 import random
 import time
+from ..data.cat_data import get_cat_data_manager
 
 @dataclass
 class DialogueLine:
@@ -62,8 +63,7 @@ class TraderNPC(BaseNPC):
         super().__init__(name, "trader", pos, '§')
         self.shop_items = {
             'corn': {'price': 4, 'stock': 50},
-            'tomato': {'price': 5, 'stock': 30},
-            'fish_bait': {'price': 2, 'stock': 100}  # 鱼饵
+            'tomato': {'price': 5, 'stock': 30}
         }
         self.buy_prices = {
             'wood': 4,
@@ -89,7 +89,8 @@ class TraderNPC(BaseNPC):
                 speaker=self.name,
                 text=greeting,
                 choices=[
-                    "我想买东西",
+                    "我想买种子",
+                    "我想买鱼饵",
                     "我想卖东西", 
                     "查看鱼类收购价格",
                     "再见"
@@ -253,33 +254,22 @@ class NPCManager:
     
     def register_cat_npcs(self, cat_manager):
         """注册猫咪NPCs到NPC管理器"""
-        cat_data = [
-            ("小橘", "活泼好动，喜欢到处跑跳"),
-            ("小白", "温顺安静，喜欢晒太阳"),
-            ("小黑", "好奇心强，喜欢探索新事物"),
-            ("小灰", "慵懒可爱，总是想睡觉"),
-            ("小花", "聪明机灵，会各种小把戏"),
-            ("咪咪", "粘人撒娇，喜欢被摸摸"),
-            ("喵喵", "独立自主，有自己的想法"),
-            ("球球", "贪吃小猫，对食物很敏感"),
-            ("毛毛", "胆小害羞，容易受到惊吓"),
-            ("糖糖", "淘气捣蛋，喜欢恶作剧")
-        ]
+        # 使用统一的猫咪数据管理器
+        cat_data_manager = get_cat_data_manager()
         
-        for i, (cat_name, personality) in enumerate(cat_data):
-            cat_id = f"cat_{i+1:02d}"
-            
-            # 从cat_manager获取位置信息
-            if i < len(cat_manager.cats):
-                cat_sprite = cat_manager.cats[i]
-                pos = cat_sprite.rect.center
-            else:
-                pos = (500, 500)  # 默认位置
+        # 从cat_manager获取实际的猫咪精灵
+        for i, cat_sprite in enumerate(cat_manager.cats):
+            cat_name = cat_sprite.cat_name
+            cat_personality = cat_sprite.cat_personality
+            cat_id = f"cat_{cat_name}"  # 使用统一的ID格式
+            pos = cat_sprite.rect.center
             
             # 创建CatNPCData实例
-            cat_npc_data = CatNPCData(cat_name, pos, personality, cat_id)
+            cat_npc_data = CatNPCData(cat_name, pos, cat_personality, cat_id)
             self.add_npc(cat_id, cat_npc_data)
             print(f"[NPCManager] 注册猫咪NPC: {cat_name} ({cat_id})")
+        
+        print(f"[NPCManager] 成功注册了 {len(cat_manager.cats)} 只猫咪NPC")
     
     def refresh_all_quest_pools(self, player=None):
         """刷新所有NPC的任务池"""
@@ -423,13 +413,16 @@ class NPCManager:
         
         if stage == "main":
             # 主菜单选择
-            if choice_index == 0:  # 买东西
+            if choice_index == 0:  # 买种子
                 state["stage"] = "shop"
                 return self._handle_trader_shop(npc, player)
-            elif choice_index == 1:  # 卖东西
+            elif choice_index == 1:  # 买鱼饵
+                state["stage"] = "bait_shop"
+                return self._handle_trader_bait_shop(npc, player)
+            elif choice_index == 2:  # 卖东西
                 state["stage"] = "sell"
                 return self._handle_trader_sell(npc, player)
-            elif choice_index == 2:  # 鱼类收购
+            elif choice_index == 3:  # 鱼类收购
                 result = npc.buy_fish_from_player(player)
                 return [DialogueLine(npc.name, result)]
             else:  # 再见
@@ -443,6 +436,10 @@ class NPCManager:
                 return self._execute_transaction(npc, "buy_tomato", player)
             else:  # 不买了
                 return [DialogueLine(npc.name, "下次再来看看吧！")]
+        
+        elif stage == "bait_shop":
+            # 鱼饵商店购买选择
+            return self._handle_bait_shop_choice(npc, choice_index, player)
         
         elif stage == "sell":
             # 出售选择
@@ -525,6 +522,69 @@ class NPCManager:
                 return [DialogueLine(npc.name, "没有可以出售的商品。")]
         
         return [DialogueLine(npc.name, "交易取消。")]
+    
+    def _handle_trader_bait_shop(self, npc: TraderNPC, player):
+        """处理商人鱼饵商店"""
+        from .bait_system import get_bait_system
+        bait_system = get_bait_system()
+        
+        # 获取鱼饵商店信息
+        bait_info = bait_system.get_bait_shop_info()
+        
+        if not bait_info:
+            return [DialogueLine(npc.name, "抱歉，目前没有鱼饵可以出售。")]
+        
+        # 构建鱼饵选择列表
+        choices = []
+        shop_text = f"我的鱼饵：\n"
+        
+        for bait in bait_info:
+            if bait['can_buy']:
+                shop_text += f"{bait['name']} - {bait['price']}金币 (库存: {bait['current_count']}/{bait['max_stack']})\n"
+                choices.append(f"买{bait['name']}({bait['price']}金币)")
+            else:
+                shop_text += f"{bait['name']} - {bait['price']}金币 (已满)\n"
+        
+        shop_text += f"\n你有{player.money}金币"
+        choices.append("不买了")
+        
+        return [DialogueLine(npc.name, shop_text, choices=choices)]
+    
+    def _handle_bait_shop_choice(self, npc: TraderNPC, choice_index: int, player):
+        """处理鱼饵商店选择"""
+        from .bait_system import get_bait_system
+        bait_system = get_bait_system()
+        
+        # 获取可购买的鱼饵列表
+        bait_info = bait_system.get_bait_shop_info()
+        buyable_baits = [bait for bait in bait_info if bait['can_buy']]
+        
+        # 检查是否是"不买了"选项
+        if choice_index >= len(buyable_baits):
+            return [DialogueLine(npc.name, "下次再来看看吧！")]
+        
+        # 获取选中的鱼饵
+        selected_bait = buyable_baits[choice_index]
+        bait_id = selected_bait['id']
+        price = selected_bait['price']
+        
+        # 检查玩家金币是否足够
+        if player.money < price:
+            return [DialogueLine(npc.name, f"你的金币不够购买{selected_bait['name']}。")]
+        
+        # 尝试购买鱼饵
+        success, total_cost = bait_system.buy_bait_from_shop(bait_id, 1)
+        
+        if success:
+            # 扣除金币
+            player.money -= total_cost
+            # 完成购买
+            bait_system.complete_bait_purchase(bait_id, 1)
+            
+            # 继续显示商店（让玩家可以继续购买）
+            return self._handle_trader_bait_shop(npc, player)
+        else:
+            return [DialogueLine(npc.name, f"购买{selected_bait['name']}失败。")]
     
     def _handle_fisherman_choice(self, npc: FishermanNPC, choice_index: int, player):
         """处理渔夫选择"""

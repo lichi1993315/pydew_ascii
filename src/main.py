@@ -86,8 +86,8 @@ class Game:
 		desc_lines = [
 			'使用ASCII字符渲染的钓鱼游戏',
 			'@ = 玩家  T = 树木  * = 花朵  ~ = 水',
-			'C键打开聊天面板  靠近NPC聊天',
-			'支持连续对话和滚动查看历史  ESC键返回主菜单'
+			'C键打开聊天面板  B键打开鱼饵箱  靠近NPC聊天',
+			'1-6键选择鱼饵  支持连续对话  ESC键返回主菜单'
 		]
 		
 		for i, line in enumerate(desc_lines):
@@ -141,6 +141,10 @@ class Game:
 			if self.level and self.level.chat_panel.handle_input(event):
 				continue  # 如果聊天系统处理了输入，跳过其他处理
 			
+			# 处理鱼饵箱UI事件
+			if self.level and self.level.handle_bait_box_events(event):
+				continue  # 如果鱼饵箱UI处理了输入，跳过其他处理
+			
 			if event.type == pygame.KEYDOWN:
 				if event.key == pygame.K_ESCAPE:
 					self.show_menu = True
@@ -156,15 +160,21 @@ class Game:
 					
 					# 处理T键交互
 					if event.key == pygame.K_t:
-						# 优先检查猫咪交互
-						nearby_cat = self.level.check_cat_interaction()
-						if nearby_cat:
-							self.level.cat_info_ui.show_cat_info(nearby_cat, self.level.chat_ai)
+						# 优先检查工作台交互
+						nearby_workbench = self.level.check_workbench_interaction()
+						if nearby_workbench:
+							# 打开工作台的鱼饵制作界面
+							self.level.bait_box_ui.toggle_visibility()
 						else:
-							# 检查其他NPC交互
-							nearby_npc = self.level.check_npc_interaction()
-							if nearby_npc:
-								self.level.start_npc_dialogue(nearby_npc)
+							# 检查猫咪交互
+							nearby_cat = self.level.check_cat_interaction()
+							if nearby_cat:
+								self.level.cat_info_ui.show_cat_info(nearby_cat, self.level.chat_ai)
+							else:
+								# 检查其他NPC交互
+								nearby_npc = self.level.check_npc_interaction()
+								if nearby_npc:
+									self.level.start_npc_dialogue(nearby_npc)
 					
 					# 时间控制键
 					if event.key == pygame.K_EQUALS or event.key == pygame.K_PLUS:
@@ -202,6 +212,13 @@ class Game:
 							self.level.sky.set_time_speed(3600.0)
 						else:
 							self.level.sky.set_time_speed(1.0)
+					
+					# 鱼饵系统按键 - 移除B键直接打开，改为T键在工作台附近交互
+					
+					# 数字键选择鱼饵
+					if pygame.K_1 <= event.key <= pygame.K_6:
+						bait_index = event.key - pygame.K_1
+						self.level.select_bait_by_index(bait_index)
 		
 		return True
 	
